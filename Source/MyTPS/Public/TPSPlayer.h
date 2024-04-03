@@ -25,6 +25,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
 	class UCameraComponent* cameraComp;
 
+	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
+	class USpringArmComponent* springArmComp;
+
 	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
 	class UInputMappingContext* imc_tpsKeyMap;
 
@@ -40,10 +43,15 @@ public:
 private:
 	FVector moveDirection;
 	FRotator deltaRotation;
+	FVector camPosition = FVector(-500, 0, 60);
+	FVector previousCamLoc;
 
 	UFUNCTION()
 	void PlayerMove(const FInputActionValue& value);
 
 	UFUNCTION()
 	void PlayerRotate(const FInputActionValue& value);
+
+	void CheckObstacles();
+	void SetCameraLag(float deltaTime, float traceSpeed);
 };
