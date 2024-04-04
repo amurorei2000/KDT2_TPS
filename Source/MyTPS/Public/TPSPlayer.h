@@ -28,6 +28,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
 	class USpringArmComponent* springArmComp;
 
+	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
+	class USkeletalMeshComponent* gunMeshComp;
+
 	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
 	class UInputMappingContext* imc_tpsKeyMap;
 
@@ -36,6 +39,12 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
 	class UInputAction* ia_rotate;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
+	class UInputAction* ia_jump;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
+	class UInputAction* ia_fire;
 
 	UPROPERTY(EditAnywhere, Category="MySettings|Options", meta = (UIMin="0.01", UIMax="1.99", ClampMin="0.01", ClampMax="1.99"))
 	float mouseSensibility = 1.0f;
@@ -51,6 +60,15 @@ private:
 
 	UFUNCTION()
 	void PlayerRotate(const FInputActionValue& value);
+
+	UFUNCTION()
+	void PlayerJump(const FInputActionValue& value);
+
+	UFUNCTION()
+	void PlayerFire(const FInputActionValue& value);
+
+	UFUNCTION()
+	void PlayerFire2(const FInputActionValue& value);
 
 	void CheckObstacles();
 	void SetCameraLag(float deltaTime, float traceSpeed);

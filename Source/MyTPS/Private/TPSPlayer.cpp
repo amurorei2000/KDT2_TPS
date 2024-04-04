@@ -7,6 +7,8 @@
 #include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include <../../../../../../../Source/Runtime/Engine/Public/KismetTraceUtils.h>
+#include "Components/SkeletalMeshComponent.h"
 
 
 ATPSPlayer::ATPSPlayer()
@@ -43,6 +45,9 @@ ATPSPlayer::ATPSPlayer()
 	// 카메라의 회전 값을 컨트롤 로테이션에 따르게 하기
 	cameraComp->bUsePawnControlRotation = true;
 
+	gunMeshComp = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Gun Mesh"));
+	gunMeshComp->SetupAttachment(GetMesh(), FName("GunSocket"));
+
 
 	// 캐릭터의 최대 이동 속력과 가속력을 설정한다.(cm/s)
 	GetCharacterMovement()->MaxWalkSpeed = 600.0f;
@@ -60,7 +65,12 @@ ATPSPlayer::ATPSPlayer()
 	GetCharacterMovement()->bUseControllerDesiredRotation = true;
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 
-
+	// 점프력 설정
+	GetCharacterMovement()->JumpZVelocity = 600.0f;
+	GetCharacterMovement()->AirControl = 0.05f;
+	
+	// 연속 점프 가능 수
+	JumpMaxCount = 2;
 }
 
 void ATPSPlayer::BeginPlay()
@@ -101,6 +111,10 @@ void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 		//enhancedInputComponent->BindAction(ia_move, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerMove);
 		enhancedInputComponent->BindAction(ia_rotate, ETriggerEvent::Triggered, this, &ATPSPlayer::PlayerRotate);
 		//enhancedInputComponent->BindAction(ia_rotate, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerRotate);
+		enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Started, this, &ATPSPlayer::PlayerJump);
+		//enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Started, this, &ACharacter::Jump);
+		enhancedInputComponent->BindAction(ia_fire, ETriggerEvent::Started, this, &ATPSPlayer::PlayerFire2);
+
 	}
 }
 
@@ -133,6 +147,69 @@ void ATPSPlayer::PlayerRotate(const FInputActionValue& value)
 	//SetActorRotation(GetActorRotation() + deltaRotation);
 	AddControllerYawInput(deltaRotation.Yaw * mouseSensibility);
 	AddControllerPitchInput(deltaRotation.Pitch * mouseSensibility);
+}
+
+void ATPSPlayer::PlayerJump(const FInputActionValue& value)
+{
+	Jump();
+
+}
+
+void ATPSPlayer::PlayerFire(const FInputActionValue& value)
+{
+	// 라인 트레이스 방식
+	FHitResult hitInfo;
+	FVector startLoc = GetActorLocation();
+	FVector endLoc = startLoc + GetActorForwardVector() * 1000.0f;
+	// 충돌 체크에 포함할 오브젝트 타입
+	FCollisionObjectQueryParams objQueryParams;
+	objQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	objQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	// 충돌 체크에서 제외할 액터 또는 컴포넌트
+	FCollisionQueryParams queryParams;
+	queryParams.AddIgnoredActor(this);
+
+	// 싱글 방식
+	//bool bResult = GetWorld()->LineTraceSingleByObjectType(hitInfo, startLoc, endLoc, objQueryParams, queryParams);
+	bool bResult = GetWorld()->LineTraceSingleByChannel(hitInfo, startLoc, endLoc, ECC_Visibility, queryParams);
+
+	// 멀티 방식
+	//TArray<FHitResult> hitInfos;
+
+	//bool bResult = GetWorld()->LineTraceMultiByChannel(hitInfos, startLoc, endLoc, ECC_Visibility, queryParams);
+	//bool bResult = GetWorld()->LineTraceMultiByObjectType(hitInfos, startLoc, endLoc, objQueryParams, queryParams);
+
+	if (bResult)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Hit Actor Name: %s"), *hitInfo.GetActor()->GetActorNameOrLabel());
+		DrawDebugLine(GetWorld(), startLoc, hitInfo.ImpactPoint, FColor(0, 255, 0), false, 2.0f, 0, 1);
+		DrawDebugLine(GetWorld(), hitInfo.ImpactPoint, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1);
+	}
+	else
+	{
+		DrawDebugLine(GetWorld(), startLoc, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1.0f);
+	}
+}
+
+void ATPSPlayer::PlayerFire2(const FInputActionValue& value)
+{
+	FHitResult hitInfo;
+	FVector startLoc = GetActorLocation();
+	FVector endLoc = startLoc + GetActorForwardVector() * 1000.0f;
+	FQuat startRot = FRotator(0, 0, 45).Quaternion();
+	FCollisionQueryParams queryParams;
+	queryParams.AddIgnoredActor(this);
+
+	// 정육면체를 45도 회전시킨 상태로 발사한다.
+	bool bResult = GetWorld()->SweepSingleByChannel(hitInfo, startLoc, endLoc, startRot, ECC_Visibility, FCollisionShape::MakeBox(FVector(10)), queryParams);
+
+	if (bResult)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Hit Actor name: %s"), *hitInfo.GetActor()->GetActorNameOrLabel());
+		FVector centerPos = (startLoc + endLoc) * 0.5f;
+	}
+
+	DrawDebugBoxTraceSingle(GetWorld(), startLoc, endLoc, FVector(10), FRotator(0, 0, 45), EDrawDebugTrace::ForDuration, true, hitInfo, FLinearColor::Green, FLinearColor::Red, 2.0f);
 }
 
 void ATPSPlayer::CheckObstacles()
