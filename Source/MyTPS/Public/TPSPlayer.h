@@ -51,6 +51,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
 	class UInputAction* ia_alpha2;
+	
+	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
+	class UInputAction* ia_aimFocusing;
 
 	UPROPERTY(EditAnywhere, Category="MySettings|Options", meta = (UIMin="0.01", UIMax="1.99", ClampMin="0.01", ClampMax="1.99"))
 	float mouseSensibility = 0.2f;
@@ -69,6 +72,8 @@ private:
 	FRotator deltaRotation;
 	FVector camPosition = FVector(-500, 0, 60);
 	FVector previousCamLoc;
+	UPROPERTY()
+	class ATPSMainGameModeBase* gm;
 
 	UFUNCTION()
 	void PlayerMove(const FInputActionValue& value);
@@ -91,7 +96,12 @@ private:
 	UFUNCTION()
 	void SetWeapon2(const FInputActionValue& value);
 
+	UFUNCTION()
+	void SniperGunZoomInOut(const FInputActionValue& value);
+
 	void CheckObstacles();
 	void SetCameraLag(float deltaTime, float traceSpeed);
 	void ChangeGunType(int32 number);
+	bool bZoomIn = false;
+	float alpha = 0;
 };

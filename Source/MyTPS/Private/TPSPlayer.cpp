@@ -11,6 +11,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "BulletFXActor.h"
 #include "EngineUtils.h"
+#include "TPSMainGameModeBase.h"
+#include "MainWidget.h"
 
 
 ATPSPlayer::ATPSPlayer()
@@ -97,6 +99,8 @@ void ATPSPlayer::BeginPlay()
 	{
 		bulletFX = *iter;
 	}
+
+	gm = Cast<ATPSMainGameModeBase>(GetWorld()->GetAuthGameMode());
 }
 
 void ATPSPlayer::Tick(float DeltaTime)
@@ -105,6 +109,15 @@ void ATPSPlayer::Tick(float DeltaTime)
 
 	// 카메라와 캐릭터 사이의 방해물을 검사하는 함수
 	//CheckObstacles();
+	
+	// 카메라 줌 인 아웃 처리
+	float direction = bZoomIn ? 1.0f : -1.0f;
+	alpha += DeltaTime * direction * 5.0f;
+	alpha = FMath::Clamp(alpha, 0.0f, 1.0f);
+
+	float result = FMath::Lerp(90, 40, alpha);
+	cameraComp->SetFieldOfView(result);
+
 }
 
 void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -124,6 +137,8 @@ void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 		enhancedInputComponent->BindAction(ia_fire, ETriggerEvent::Started, this, &ATPSPlayer::PlayerFire);
 		enhancedInputComponent->BindAction(ia_alpha1, ETriggerEvent::Started, this, &ATPSPlayer::SetWeapon1);
 		enhancedInputComponent->BindAction(ia_alpha2, ETriggerEvent::Started, this, &ATPSPlayer::SetWeapon2);
+		enhancedInputComponent->BindAction(ia_aimFocusing, ETriggerEvent::Started, this, &ATPSPlayer::SniperGunZoomInOut);
+		enhancedInputComponent->BindAction(ia_aimFocusing, ETriggerEvent::Completed, this, &ATPSPlayer::SniperGunZoomInOut);
 	}
 }
 
@@ -238,6 +253,28 @@ void ATPSPlayer::SetWeapon2(const FInputActionValue& value)
 	ChangeGunType(1);
 }
 
+void ATPSPlayer::SniperGunZoomInOut(const FInputActionValue& value)
+{
+	bool inputValue = value.Get<bool>();
+
+	if (inputValue)
+	{
+		springArmComp->TargetArmLength = -100;
+	}
+	else
+	{
+		springArmComp->TargetArmLength = 300;
+	}
+
+	// zoom in 효과 on/off 설정
+	bZoomIn = inputValue;
+
+	if (gm != nullptr && gm->mainWidget_inst != nullptr)
+	{
+		gm->mainWidget_inst->SetSniperMode(!inputValue);
+	}
+}
+
 void ATPSPlayer::CheckObstacles()
 {
 	// 플레이어->카메라 방향으로 라인 트레이스를 이용해서 Visibility 채널을 검색한다.
@@ -280,7 +317,14 @@ void ATPSPlayer::SetCameraLag(float deltaTime, float traceSpeed)
 
 void ATPSPlayer::ChangeGunType(int32 number)
 {
+	// 메시 변경
 	gunMeshComp->SetStaticMesh(gunTypes[number]);
 	gunMeshComp->SetRelativeLocation(gunOffset[number]);
+	
+	// UI 텍스쳐 변경
+	if (gm != nullptr)
+	{
+		gm->mainWidget_inst->SetWeaponTexture(number);
+	}
 }
 
