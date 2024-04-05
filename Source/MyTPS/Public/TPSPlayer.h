@@ -29,7 +29,7 @@ public:
 	class USpringArmComponent* springArmComp;
 
 	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
-	class USkeletalMeshComponent* gunMeshComp;
+	class UStaticMeshComponent* gunMeshComp;
 
 	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
 	class UInputMappingContext* imc_tpsKeyMap;
@@ -46,8 +46,23 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
 	class UInputAction* ia_fire;
 
+	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
+	class UInputAction* ia_alpha1;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
+	class UInputAction* ia_alpha2;
+
 	UPROPERTY(EditAnywhere, Category="MySettings|Options", meta = (UIMin="0.01", UIMax="1.99", ClampMin="0.01", ClampMax="1.99"))
-	float mouseSensibility = 1.0f;
+	float mouseSensibility = 0.2f;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	class ABulletFXActor* bulletFX;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	TArray<class UStaticMesh*> gunTypes;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	TArray<FVector> gunOffset;
 
 private:
 	FVector moveDirection;
@@ -70,6 +85,13 @@ private:
 	UFUNCTION()
 	void PlayerFire2(const FInputActionValue& value);
 
+	UFUNCTION()
+	void SetWeapon1(const FInputActionValue& value);
+
+	UFUNCTION()
+	void SetWeapon2(const FInputActionValue& value);
+
 	void CheckObstacles();
 	void SetCameraLag(float deltaTime, float traceSpeed);
+	void ChangeGunType(int32 number);
 };

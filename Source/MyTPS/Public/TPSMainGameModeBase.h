@@ -14,4 +14,12 @@ class MYTPS_API ATPSMainGameModeBase : public AGameModeBase
 {
 	GENERATED_BODY()
 	
+public:
+	UPROPERTY(EditAnywhere, Category="MySettings")
+	TSubclassOf<class UMainWidget> mainWidget_bp;
+
+protected:
+	virtual void BeginPlay() override;
+
+
 };

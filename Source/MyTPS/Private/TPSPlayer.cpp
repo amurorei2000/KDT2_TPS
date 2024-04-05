@@ -7,8 +7,10 @@
 #include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include <../../../../../../../Source/Runtime/Engine/Public/KismetTraceUtils.h>
-#include "Components/SkeletalMeshComponent.h"
+#include "KismetTraceUtils.h"
+#include "Components/StaticMeshComponent.h"
+#include "BulletFXActor.h"
+#include "EngineUtils.h"
 
 
 ATPSPlayer::ATPSPlayer()
@@ -16,7 +18,7 @@ ATPSPlayer::ATPSPlayer()
 	PrimaryActorTick.bCanEverTick = true;
 
 	// 스켈레탈 메시 에셋 할당하기
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> playerMesh(TEXT("/Script/Engine.SkeletalMesh'/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny'"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> playerMesh(TEXT("/Script/Engine.SkeletalMesh'/Game/AnimStarterPack/UE4_Mannequin/Mesh/SK_Mannequin.SK_Mannequin'"));
 	if (playerMesh.Succeeded())
 	{
 		GetMesh()->SetSkeletalMesh(playerMesh.Object);
@@ -27,15 +29,16 @@ ATPSPlayer::ATPSPlayer()
 
 	springArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("Camera Spring Arm"));
 	springArmComp->SetupAttachment(RootComponent);
-	springArmComp->TargetArmLength = 500;
-	springArmComp->SocketOffset = FVector(0, 0, 60);
+	springArmComp->SetRelativeLocation(FVector(0, 50, 60));
+	springArmComp->TargetArmLength = 300;
+	springArmComp->SocketOffset = FVector(0, 0, 0);
 	// 스프링 암의 target -> socket 사이의 장애물 검사
 	springArmComp->bDoCollisionTest = true;
 	springArmComp->ProbeSize = 12.0f;
 	springArmComp->ProbeChannel = ECC_Camera;
 	// 스프링 암의 이동을 지연시키는 효과를 켜기
 	springArmComp->bEnableCameraLag = true;
-	springArmComp->CameraLagSpeed = 10.0f;
+	springArmComp->CameraLagSpeed = 50.0f;
 
 	cameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("Player Camera"));
 	//cameraComp->SetupAttachment(GetCapsuleComponent());
@@ -43,9 +46,9 @@ ATPSPlayer::ATPSPlayer()
 	//cameraComp->SetRelativeLocation(FVector(-500, 0, 60));
 	cameraComp->SetupAttachment(springArmComp, USpringArmComponent::SocketName);
 	// 카메라의 회전 값을 컨트롤 로테이션에 따르게 하기
-	cameraComp->bUsePawnControlRotation = true;
+	cameraComp->bUsePawnControlRotation = false;
 
-	gunMeshComp = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Gun Mesh"));
+	gunMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Gun Mesh"));
 	gunMeshComp->SetupAttachment(GetMesh(), FName("GunSocket"));
 
 
@@ -62,7 +65,7 @@ ATPSPlayer::ATPSPlayer()
 	bUseControllerRotationRoll = false;
 
 	// 이동하는 방향으로 캐릭터를 회전시키기
-	GetCharacterMovement()->bUseControllerDesiredRotation = true;
+	GetCharacterMovement()->bUseControllerDesiredRotation = false;
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 
 	// 점프력 설정
@@ -89,6 +92,11 @@ void ATPSPlayer::BeginPlay()
 		}
 	}
 	
+	// 월드에 있는 총알 피격 효과 액터를 찾아서 변수에 참조시킨다.
+	for (TActorIterator<ABulletFXActor> iter(GetWorld()); iter; ++iter)
+	{
+		bulletFX = *iter;
+	}
 }
 
 void ATPSPlayer::Tick(float DeltaTime)
@@ -113,8 +121,9 @@ void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 		//enhancedInputComponent->BindAction(ia_rotate, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerRotate);
 		enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Started, this, &ATPSPlayer::PlayerJump);
 		//enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Started, this, &ACharacter::Jump);
-		enhancedInputComponent->BindAction(ia_fire, ETriggerEvent::Started, this, &ATPSPlayer::PlayerFire2);
-
+		enhancedInputComponent->BindAction(ia_fire, ETriggerEvent::Started, this, &ATPSPlayer::PlayerFire);
+		enhancedInputComponent->BindAction(ia_alpha1, ETriggerEvent::Started, this, &ATPSPlayer::SetWeapon1);
+		enhancedInputComponent->BindAction(ia_alpha2, ETriggerEvent::Started, this, &ATPSPlayer::SetWeapon2);
 	}
 }
 
@@ -159,8 +168,8 @@ void ATPSPlayer::PlayerFire(const FInputActionValue& value)
 {
 	// 라인 트레이스 방식
 	FHitResult hitInfo;
-	FVector startLoc = GetActorLocation();
-	FVector endLoc = startLoc + GetActorForwardVector() * 1000.0f;
+	FVector startLoc = cameraComp->GetComponentLocation();
+	FVector endLoc = startLoc + cameraComp->GetForwardVector() * 1000.0f;
 	// 충돌 체크에 포함할 오브젝트 타입
 	FCollisionObjectQueryParams objQueryParams;
 	objQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
@@ -181,13 +190,20 @@ void ATPSPlayer::PlayerFire(const FInputActionValue& value)
 
 	if (bResult)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Hit Actor Name: %s"), *hitInfo.GetActor()->GetActorNameOrLabel());
-		DrawDebugLine(GetWorld(), startLoc, hitInfo.ImpactPoint, FColor(0, 255, 0), false, 2.0f, 0, 1);
-		DrawDebugLine(GetWorld(), hitInfo.ImpactPoint, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1);
+		//UE_LOG(LogTemp, Warning, TEXT("Hit Actor Name: %s"), *hitInfo.GetActor()->GetActorNameOrLabel());
+		//DrawDebugLine(GetWorld(), startLoc, hitInfo.ImpactPoint, FColor(0, 255, 0), false, 2.0f, 0, 1);
+		//DrawDebugLine(GetWorld(), hitInfo.ImpactPoint, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1);
+
+		// 충돌한 지점에 폭발 효과 이펙트를 출력한다.
+		if (bulletFX != nullptr)
+		{
+			bulletFX->SetActorLocation(hitInfo.ImpactPoint);
+			bulletFX->PlayFX();
+		}
 	}
 	else
 	{
-		DrawDebugLine(GetWorld(), startLoc, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1.0f);
+		//DrawDebugLine(GetWorld(), startLoc, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1.0f);
 	}
 }
 
@@ -210,6 +226,16 @@ void ATPSPlayer::PlayerFire2(const FInputActionValue& value)
 	}
 
 	DrawDebugBoxTraceSingle(GetWorld(), startLoc, endLoc, FVector(10), FRotator(0, 0, 45), EDrawDebugTrace::ForDuration, true, hitInfo, FLinearColor::Green, FLinearColor::Red, 2.0f);
+}
+
+void ATPSPlayer::SetWeapon1(const FInputActionValue& value)
+{
+	ChangeGunType(0);
+}
+
+void ATPSPlayer::SetWeapon2(const FInputActionValue& value)
+{
+	ChangeGunType(1);
 }
 
 void ATPSPlayer::CheckObstacles()
@@ -250,5 +276,11 @@ void ATPSPlayer::SetCameraLag(float deltaTime, float traceSpeed)
 
 	// 현재 프레임의 카메라 위치를 변수에 저장시킨다.
 	previousCamLoc = cameraComp->GetComponentLocation();
+}
+
+void ATPSPlayer::ChangeGunType(int32 number)
+{
+	gunMeshComp->SetStaticMesh(gunTypes[number]);
+	gunMeshComp->SetRelativeLocation(gunOffset[number]);
 }
 
