@@ -55,6 +55,9 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
 	class UInputAction* ia_aimFocusing;
 
+	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
+	class UInputAction* ia_releaseWeapon;
+
 	UPROPERTY(EditAnywhere, Category="MySettings|Options", meta = (UIMin="0.01", UIMax="1.99", ClampMin="0.01", ClampMax="1.99"))
 	float mouseSensibility = 0.2f;
 
@@ -67,6 +70,12 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TArray<FVector> gunOffset;
 
+	UPROPERTY()
+	class AWeaponActor* attachedWeapon;
+
+	/*UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	TArray<class UAnimationAsset*> anims;*/
+
 private:
 	FVector moveDirection;
 	FRotator deltaRotation;
@@ -78,11 +87,20 @@ private:
 	UFUNCTION()
 	void PlayerMove(const FInputActionValue& value);
 
+	/*UFUNCTION()
+	void PlayerMoveStart(const FInputActionValue& value);
+
+	UFUNCTION()
+	void PlayerMoveEnd(const FInputActionValue& value);*/
+
 	UFUNCTION()
 	void PlayerRotate(const FInputActionValue& value);
 
 	UFUNCTION()
 	void PlayerJump(const FInputActionValue& value);
+
+	UFUNCTION()
+	void PlayerJumpEnd(const FInputActionValue& value);
 
 	UFUNCTION()
 	void PlayerFire(const FInputActionValue& value);
@@ -99,9 +117,16 @@ private:
 	UFUNCTION()
 	void SniperGunZoomInOut(const FInputActionValue& value);
 
+	UFUNCTION()
+	void ReleaseAction(const FInputActionValue& value);
+
 	void CheckObstacles();
 	void SetCameraLag(float deltaTime, float traceSpeed);
 	void ChangeGunType(int32 number);
 	bool bZoomIn = false;
 	float alpha = 0;
+	int32 currentWeaponNumber = 0;
+
+	UPROPERTY()
+	class UPlayerAnimInstance* playerAnim;
 };

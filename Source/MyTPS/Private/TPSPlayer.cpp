@@ -13,6 +13,8 @@
 #include "EngineUtils.h"
 #include "TPSMainGameModeBase.h"
 #include "MainWidget.h"
+#include "WeaponActor.h"
+#include "PlayerAnimInstance.h"
 
 
 ATPSPlayer::ATPSPlayer()
@@ -101,6 +103,7 @@ void ATPSPlayer::BeginPlay()
 	}
 
 	gm = Cast<ATPSMainGameModeBase>(GetWorld()->GetAuthGameMode());
+	playerAnim = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance());
 }
 
 void ATPSPlayer::Tick(float DeltaTime)
@@ -118,6 +121,7 @@ void ATPSPlayer::Tick(float DeltaTime)
 	float result = FMath::Lerp(90, 40, alpha);
 	cameraComp->SetFieldOfView(result);
 
+	//UE_LOG(LogTemp, Warning, TEXT("Jump: %s"), GetCharacterMovement()->IsFalling() ? *FString("True") : *FString("False"));
 }
 
 void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -128,17 +132,20 @@ void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 
 	if (enhancedInputComponent != nullptr)
 	{
+		//enhancedInputComponent->BindAction(ia_move, ETriggerEvent::Started, this, &ATPSPlayer::PlayerMoveStart);
 		enhancedInputComponent->BindAction(ia_move, ETriggerEvent::Triggered, this, &ATPSPlayer::PlayerMove);
-		//enhancedInputComponent->BindAction(ia_move, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerMove);
+		enhancedInputComponent->BindAction(ia_move, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerMove);
 		enhancedInputComponent->BindAction(ia_rotate, ETriggerEvent::Triggered, this, &ATPSPlayer::PlayerRotate);
 		//enhancedInputComponent->BindAction(ia_rotate, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerRotate);
 		enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Started, this, &ATPSPlayer::PlayerJump);
+		enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerJumpEnd);
 		//enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Started, this, &ACharacter::Jump);
 		enhancedInputComponent->BindAction(ia_fire, ETriggerEvent::Started, this, &ATPSPlayer::PlayerFire);
 		enhancedInputComponent->BindAction(ia_alpha1, ETriggerEvent::Started, this, &ATPSPlayer::SetWeapon1);
 		enhancedInputComponent->BindAction(ia_alpha2, ETriggerEvent::Started, this, &ATPSPlayer::SetWeapon2);
 		enhancedInputComponent->BindAction(ia_aimFocusing, ETriggerEvent::Started, this, &ATPSPlayer::SniperGunZoomInOut);
 		enhancedInputComponent->BindAction(ia_aimFocusing, ETriggerEvent::Completed, this, &ATPSPlayer::SniperGunZoomInOut);
+		enhancedInputComponent->BindAction(ia_releaseWeapon, ETriggerEvent::Started, this, &ATPSPlayer::ReleaseAction);
 	}
 }
 
@@ -160,7 +167,25 @@ void ATPSPlayer::PlayerMove(const FInputActionValue& value)
 	//FVector right = FRotationMatrix(GetActorRotation()).GetUnitAxis(EAxis::Y);
 	//FVector localMoveDirection = GetActorForwardVector() * moveDirection.X + GetActorRightVector() * moveDirection.Y;
 	AddMovementInput(localMoveDirection.GetSafeNormal());
+
+	// 애니메이션 인스턴스에 있는 moveDirection 변수에 현재 입력 값을 전달한다.
+	if (playerAnim != nullptr)
+	{
+		playerAnim->moveDirection = moveDirection;
+	}
 }
+
+//void ATPSPlayer::PlayerMoveStart(const FInputActionValue& value)
+//{
+//	// 달리기 애니메이션으로 교체한다.
+//	GetMesh()->PlayAnimation(anims[1], true);
+//}
+
+//void ATPSPlayer::PlayerMoveEnd(const FInputActionValue& value)
+//{
+//	// 대기 애니메이션으로 교체한다.
+//	GetMesh()->PlayAnimation(anims[0], true);
+//}
 
 void ATPSPlayer::PlayerRotate(const FInputActionValue& value)
 {
@@ -176,7 +201,11 @@ void ATPSPlayer::PlayerRotate(const FInputActionValue& value)
 void ATPSPlayer::PlayerJump(const FInputActionValue& value)
 {
 	Jump();
+}
 
+void ATPSPlayer::PlayerJumpEnd(const FInputActionValue& value)
+{
+	StopJumping();
 }
 
 void ATPSPlayer::PlayerFire(const FInputActionValue& value)
@@ -245,16 +274,23 @@ void ATPSPlayer::PlayerFire2(const FInputActionValue& value)
 
 void ATPSPlayer::SetWeapon1(const FInputActionValue& value)
 {
-	ChangeGunType(0);
+	currentWeaponNumber = 0;
+	ChangeGunType(currentWeaponNumber);
 }
 
 void ATPSPlayer::SetWeapon2(const FInputActionValue& value)
 {
-	ChangeGunType(1);
+	currentWeaponNumber = 1;
+	ChangeGunType(currentWeaponNumber);
 }
 
 void ATPSPlayer::SniperGunZoomInOut(const FInputActionValue& value)
 {
+	if (currentWeaponNumber != 1)
+	{
+		return;
+	}
+
 	bool inputValue = value.Get<bool>();
 
 	if (inputValue)
@@ -273,6 +309,16 @@ void ATPSPlayer::SniperGunZoomInOut(const FInputActionValue& value)
 	{
 		gm->mainWidget_inst->SetSniperMode(!inputValue);
 	}
+}
+
+void ATPSPlayer::ReleaseAction(const FInputActionValue& value)
+{
+	if (attachedWeapon == nullptr)
+	{
+		return;
+	}
+	attachedWeapon->Release();
+	attachedWeapon = nullptr;
 }
 
 void ATPSPlayer::CheckObstacles()
