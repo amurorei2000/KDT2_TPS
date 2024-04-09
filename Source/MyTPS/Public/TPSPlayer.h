@@ -73,16 +73,33 @@ public:
 	UPROPERTY()
 	class AWeaponActor* attachedWeapon;
 
+	UPROPERTY(EditAnywhere, Category="MySettings|Animations")
+	TArray<class UAnimMontage*> fire_montages;
+
 	/*UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TArray<class UAnimationAsset*> anims;*/
+
+
+	void SetGunAnimType(bool sniper);
+
 
 private:
 	FVector moveDirection;
 	FRotator deltaRotation;
 	FVector camPosition = FVector(-500, 0, 60);
 	FVector previousCamLoc;
+	FTimerHandle endFireTimer;
+	bool bZoomIn = false;
+	float alpha = 0;
+	int32 currentWeaponNumber = 0;
+
+	UPROPERTY()
+	class UPlayerAnimInstance* playerAnim;
+
 	UPROPERTY()
 	class ATPSMainGameModeBase* gm;
+	
+
 
 	UFUNCTION()
 	void PlayerMove(const FInputActionValue& value);
@@ -120,13 +137,11 @@ private:
 	UFUNCTION()
 	void ReleaseAction(const FInputActionValue& value);
 
+	UFUNCTION()
+	void EndFire();
+
 	void CheckObstacles();
 	void SetCameraLag(float deltaTime, float traceSpeed);
 	void ChangeGunType(int32 number);
-	bool bZoomIn = false;
-	float alpha = 0;
-	int32 currentWeaponNumber = 0;
 
-	UPROPERTY()
-	class UPlayerAnimInstance* playerAnim;
 };

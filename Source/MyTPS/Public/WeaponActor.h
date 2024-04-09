@@ -35,6 +35,9 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings")
 	FVector snapOffset;
 
+	UPROPERTY(EditAnywhere, Category="MySettings")
+	bool bSniperGun = false;
+
 	void Release();
 
 

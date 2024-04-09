@@ -21,6 +21,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MySettings")
 	bool bIsJump = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MySettings")
+	bool bFire = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MySettings")
+	bool bUseSniper = false;
+
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 

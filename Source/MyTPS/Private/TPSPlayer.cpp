@@ -149,6 +149,14 @@ void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 	}
 }
 
+void ATPSPlayer::SetGunAnimType(bool sniper)
+{
+	if (playerAnim != nullptr)
+	{
+		playerAnim->bUseSniper = sniper;
+	}
+}
+
 void ATPSPlayer::PlayerMove(const FInputActionValue& value)
 {
 	FVector2D inputValue = value.Get<FVector2D>();
@@ -210,6 +218,12 @@ void ATPSPlayer::PlayerJumpEnd(const FInputActionValue& value)
 
 void ATPSPlayer::PlayerFire(const FInputActionValue& value)
 {
+	// 총을 들고 있지 않거나 또는 총을 발사하는 애니메이션 중일 때에는 이 함수를 종료한다.
+	if (attachedWeapon == nullptr || GetWorldTimerManager().IsTimerActive(endFireTimer))
+	{
+		return;
+	}
+
 	// 라인 트레이스 방식
 	FHitResult hitInfo;
 	FVector startLoc = cameraComp->GetComponentLocation();
@@ -245,9 +259,28 @@ void ATPSPlayer::PlayerFire(const FInputActionValue& value)
 			bulletFX->PlayFX();
 		}
 	}
-	else
-	{
+	//else
+	//{
 		//DrawDebugLine(GetWorld(), startLoc, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1.0f);
+	//}
+
+	if (playerAnim != nullptr)
+	{
+		playerAnim->bFire = true;
+
+		GetWorldTimerManager().SetTimer(endFireTimer, this, &ATPSPlayer::EndFire, 1.3f, false);
+	}
+
+	if (fire_montages.Num() > 1)
+	{
+		if (attachedWeapon->bSniperGun)
+		{
+			PlayAnimMontage(fire_montages[1]);
+		}
+		else
+		{
+			PlayAnimMontage(fire_montages[0]);
+		}
 	}
 }
 
@@ -319,6 +352,14 @@ void ATPSPlayer::ReleaseAction(const FInputActionValue& value)
 	}
 	attachedWeapon->Release();
 	attachedWeapon = nullptr;
+}
+
+void ATPSPlayer::EndFire()
+{
+	if (playerAnim != nullptr)
+	{
+		playerAnim->bFire = false;
+	}
 }
 
 void ATPSPlayer::CheckObstacles()
