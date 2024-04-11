@@ -15,6 +15,7 @@
 #include "MainWidget.h"
 #include "WeaponActor.h"
 #include "PlayerAnimInstance.h"
+#include "Enemy.h"
 
 
 ATPSPlayer::ATPSPlayer()
@@ -252,11 +253,20 @@ void ATPSPlayer::PlayerFire(const FInputActionValue& value)
 		//DrawDebugLine(GetWorld(), startLoc, hitInfo.ImpactPoint, FColor(0, 255, 0), false, 2.0f, 0, 1);
 		//DrawDebugLine(GetWorld(), hitInfo.ImpactPoint, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1);
 
-		// 충돌한 지점에 폭발 효과 이펙트를 출력한다.
+		// 감지된 지점에 폭발 효과 이펙트를 출력한다.
 		if (bulletFX != nullptr)
 		{
 			bulletFX->SetActorLocation(hitInfo.ImpactPoint);
 			bulletFX->PlayFX();
+		}
+
+		// 만일, 감지된 대상이 Enemy라면...
+		AEnemy* enemy = Cast<AEnemy>(hitInfo.GetActor());
+
+		if (enemy != nullptr)
+		{
+			// Enemy의 OnDamage() 함수를 실행시킨다.
+			enemy->OnDamaged(attachedWeapon->damage);
 		}
 	}
 	//else
@@ -268,7 +278,7 @@ void ATPSPlayer::PlayerFire(const FInputActionValue& value)
 	{
 		playerAnim->bFire = true;
 
-		GetWorldTimerManager().SetTimer(endFireTimer, this, &ATPSPlayer::EndFire, 1.3f, false);
+		GetWorldTimerManager().SetTimer(endFireTimer, this, &ATPSPlayer::EndFire, 0.5f, false);
 	}
 
 	if (fire_montages.Num() > 1)
