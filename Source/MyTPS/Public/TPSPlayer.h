@@ -81,7 +81,7 @@ public:
 
 
 	void SetGunAnimType(bool sniper);
-
+	void SetCurrentWeaponNumber(bool bSniper);
 
 private:
 	FVector moveDirection;

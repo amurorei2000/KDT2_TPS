@@ -13,6 +13,7 @@ AEnemy::AEnemy()
 	PrimaryActorTick.bCanEverTick = true;
 
 	GetCapsuleComponent()->SetCollisionProfileName(FName("EnemyPreset"));
+	GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 }
 
 void AEnemy::BeginPlay()
@@ -61,7 +62,7 @@ void AEnemy::Tick(float DeltaTime)
 		DamageProcess(DeltaTime);
 		break;
 	case EEnemyState::DIE:
-		Die();
+		//Die();
 		break;
 	default:
 		break;
@@ -162,7 +163,7 @@ void AEnemy::Attack()
 {
 	if (FVector::Distance(GetActorLocation(), target->GetActorLocation()) < attackDistance + 15.0f)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Attack Player!"));
+		
 		enemyState = EEnemyState::ATTACKDELAY;
 	}
 	else
@@ -174,6 +175,7 @@ void AEnemy::Attack()
 
 void AEnemy::AttackDelay(float deltaSeconds)
 {
+
 	// 공격 대기 시간이 경과되면 다시 ATTACK 상태로 되돌린다.
 	currentTime += deltaSeconds;
 
@@ -181,6 +183,14 @@ void AEnemy::AttackDelay(float deltaSeconds)
 	{
 		currentTime = 0;
 		enemyState = EEnemyState::ATTACK;
+	}
+
+	if (FVector::Distance(GetActorLocation(), target->GetActorLocation()) > attackDistance + 15.0f)
+	{
+		if (currentTime > attackDelayTime * 0.65f)
+		{
+			enemyState = EEnemyState::MOVE;
+		}
 	}
 }
 
@@ -197,6 +207,8 @@ void AEnemy::ReturnHome(float deltaSeconds)
 		// 강제로 시작 위치로 이동시킨다.
 		SetActorLocation(originLocation);
 		SetActorRotation(originRotation);
+
+		enemyState = EEnemyState::IDLE;
 	}
 	else
 	{
@@ -210,8 +222,13 @@ void AEnemy::ReturnHome(float deltaSeconds)
 
 }
 
-void AEnemy::OnDamaged(int32 dmg)
+void AEnemy::OnDamaged(int32 dmg, AActor* attacker)
 {
+	if (enemyState == EEnemyState::DAMAGED)
+	{
+		return;
+	}
+
 	currentHP = FMath::Clamp(currentHP - dmg, 0, maxHP);
 
 	// 데미지 계산 결과 현재 체력이 0보다 크다면....
@@ -220,12 +237,14 @@ void AEnemy::OnDamaged(int32 dmg)
 		// 피격 상태로 전환한다.
 		enemyState = EEnemyState::DAMAGED;
 		hitLocation = GetActorLocation();
+		hitDirection = (GetActorLocation() - attacker->GetActorLocation()).GetSafeNormal();
 	}
 	// 그렇지 않으면...
 	else
 	{
 		// 죽음 상태로 전환한다.
 		enemyState = EEnemyState::DIE;
+		Die();
 	}
 }
 
@@ -233,8 +252,8 @@ void AEnemy::OnDamaged(int32 dmg)
 void AEnemy::DamageProcess(float deltaSeconds)
 {
 	// 피격 효과를 준다(넉백 효과 부여).
-	FVector backVec = GetActorForwardVector() * -1.0f;
-	FVector targetLoc = hitLocation + backVec * 50.0f;
+	//FVector backVec = GetActorForwardVector() * -1.0f;
+	FVector targetLoc = hitLocation + hitDirection * 50.0f;
 	FVector knockBackLocation = FMath::Lerp(GetActorLocation(), targetLoc, deltaSeconds * 7.0f);
 	
 	if (FVector::Distance(GetActorLocation(), targetLoc) > 10)
@@ -250,6 +269,25 @@ void AEnemy::DamageProcess(float deltaSeconds)
 
 void AEnemy::Die()
 {
-	
+	// 콜리젼을 NoCollision 상태로 전환한다.
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// CharacterMovementComponent를 비활성화한다.
+	GetCharacterMovement()->DisableMovement();
+
+	// 죽음 애니메이션 몽타쥬를 실행한다.
+	// 1~3 사이의 랜덤한 숫자를 하나 뽑는다.
+	int32 num = FMath::RandRange(1, 3);
+	// "Dead" + 숫자로 몽타주의 섹션 이름을 만든다.
+	FString sectionName = FString("Dead") + FString::FromInt(num);
+	// 섹션 이름을 이용해서 몽타주를 플레이한다.
+	PlayAnimMontage(death_montage, 1, FName(sectionName));
+
+	// 3초 뒤에 제거한다.
+	/*FTimerHandle deadHandler;
+
+	GetWorldTimerManager().SetTimer(deadHandler, FTimerDelegate::CreateLambda([&]() {
+		Destroy();
+		}), 5.6f, false);*/
 }
 

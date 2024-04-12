@@ -10,13 +10,13 @@
 UENUM(BlueprintType)
 enum class EEnemyState : uint8
 {
-	IDLE		UMETA(DisplayName="Base State"),
-	MOVE		UMETA(DisplayName = "Walk State"),
-	ATTACK		UMETA(DisplayName = "Attack State"),
-	ATTACKDELAY	UMETA(DisplayName = "Attack Delay State"),
-	RETURN		UMETA(DisplayName = "Return State"),
-	DAMAGED		UMETA(DisplayName = "Damaged State"),
-	DIE			UMETA(DisplayName = "Dead State"),
+	IDLE,		//UMETA(DisplayName="Base State"),
+	MOVE,		//UMETA(DisplayName = "Walk State"),
+	ATTACK,		//UMETA(DisplayName = "Attack State"),
+	ATTACKDELAY,	//UMETA(DisplayName = "Attack Delay State"),
+	RETURN,		//UMETA(DisplayName = "Return State"),
+	DAMAGED,		//UMETA(DisplayName = "Damaged State"),
+	DIE			//UMETA(DisplayName = "Dead State"),
 };
 
 
@@ -66,7 +66,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "MySettings")
 	int32 maxHP = 30;
 
-	void OnDamaged(int32 dmg);
+	UPROPERTY(EditAnywhere, Category = "MySettings")
+	class UAnimMontage* death_montage;
+
+	void OnDamaged(int32 dmg, AActor* attacker);
 
 private:
 	UPROPERTY()
@@ -77,7 +80,8 @@ private:
 	FRotator originRotation;
 	int32 currentHP = 0;
 	FVector hitLocation;
-	
+	FVector hitDirection;
+
 	void Idle(float deltaSeconds);
 	void MoveToTarget(float deltaSeconds);
 	void Attack();
@@ -85,4 +89,5 @@ private:
 	void ReturnHome(float deltaSeconds);
 	void DamageProcess(float deltaSeconds);
 	void Die();
+
 };

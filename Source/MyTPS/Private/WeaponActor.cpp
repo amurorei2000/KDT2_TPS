@@ -74,6 +74,8 @@ void AWeaponActor::OnOverlapPlayer(UPrimitiveComponent* OverlappedComponent, AAc
 
 			// 플레이어 애니메이션 인스턴스의 useSniper 변수 값을 변경한다.
 			player->SetGunAnimType(bSniperGun);
+
+			player->SetCurrentWeaponNumber(bSniperGun);
 		}
 	}
 }

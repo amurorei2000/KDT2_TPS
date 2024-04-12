@@ -44,6 +44,10 @@ ATPSPlayer::ATPSPlayer()
 	// 스프링 암의 이동을 지연시키는 효과를 켜기
 	springArmComp->bEnableCameraLag = true;
 	springArmComp->CameraLagSpeed = 50.0f;
+	springArmComp->bUsePawnControlRotation = true;
+	springArmComp->bInheritYaw = true;
+	springArmComp->bInheritPitch = true;
+	springArmComp->bInheritRoll = false;
 
 	cameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("Player Camera"));
 	//cameraComp->SetupAttachment(GetCapsuleComponent());
@@ -158,6 +162,11 @@ void ATPSPlayer::SetGunAnimType(bool sniper)
 	}
 }
 
+void ATPSPlayer::SetCurrentWeaponNumber(bool bSniper)
+{
+	currentWeaponNumber = (int32)bSniper;
+}
+
 void ATPSPlayer::PlayerMove(const FInputActionValue& value)
 {
 	FVector2D inputValue = value.Get<FVector2D>();
@@ -266,7 +275,7 @@ void ATPSPlayer::PlayerFire(const FInputActionValue& value)
 		if (enemy != nullptr)
 		{
 			// Enemy의 OnDamage() 함수를 실행시킨다.
-			enemy->OnDamaged(attachedWeapon->damage);
+			enemy->OnDamaged(attachedWeapon->damage, this);
 		}
 	}
 	//else
@@ -362,6 +371,7 @@ void ATPSPlayer::ReleaseAction(const FInputActionValue& value)
 	}
 	attachedWeapon->Release();
 	attachedWeapon = nullptr;
+	currentWeaponNumber = 0;
 }
 
 void ATPSPlayer::EndFire()
