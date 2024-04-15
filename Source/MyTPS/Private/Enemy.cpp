@@ -6,6 +6,7 @@
 #include "TPSPlayer.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "EnemyAnimInstance.h"
 
 
 AEnemy::AEnemy()
@@ -23,6 +24,10 @@ void AEnemy::BeginPlay()
 	// 기본 상태를 IDLE 상태로 초기화한다.
 	enemyState = EEnemyState::IDLE;
 
+	// 플레이할 Idle 애니메이션 번호를 선택해서 EnemyAnimInstance의 idleNumber 변수에 전달한다.
+	anim = Cast<UEnemyAnimInstance>(GetMesh()->GetAnimInstance());
+
+
 	// 월드에 있는 플레이어를 찾는다.
 	for (TActorIterator<ATPSPlayer> player(GetWorld()); player; ++player)
 	{
@@ -35,6 +40,11 @@ void AEnemy::BeginPlay()
 
 	// 체력 변수를 초기화한다.
 	currentHP = maxHP;
+
+	// 메시의 머티리얼을 DynamicMaterial로 변경해준다.
+	UMaterialInterface* currentMat = GetMesh()->GetMaterial(0);
+	dynamicMat = UMaterialInstanceDynamic::Create(currentMat, nullptr);
+	GetMesh()->SetMaterial(0, dynamicMat);
 }
 
 void AEnemy::Tick(float DeltaTime)
@@ -121,6 +131,8 @@ void AEnemy::Idle(float deltaSeconds)
 	{
 		enemyState = EEnemyState::MOVE;
 		UE_LOG(LogTemp, Warning, TEXT("I see target!"));
+
+		
 	}
 }
 
@@ -208,6 +220,12 @@ void AEnemy::ReturnHome(float deltaSeconds)
 		SetActorLocation(originLocation);
 		SetActorRotation(originRotation);
 
+		// 실행할 Idle 애니메이션을 결정한다.
+		if (anim != nullptr)
+		{
+			anim->idleNumber = SelectIdleAnimation();
+		}
+
 		enemyState = EEnemyState::IDLE;
 	}
 	else
@@ -238,6 +256,9 @@ void AEnemy::OnDamaged(int32 dmg, AActor* attacker)
 		enemyState = EEnemyState::DAMAGED;
 		hitLocation = GetActorLocation();
 		hitDirection = (GetActorLocation() - attacker->GetActorLocation()).GetSafeNormal();
+		
+		// 머티리얼 색상에 붉은 색을 입힌다.
+		dynamicMat->SetVectorParameterValue(FName("hitColor"), FVector4(1, 0, 0, 1));
 	}
 	// 그렇지 않으면...
 	else
@@ -262,6 +283,8 @@ void AEnemy::DamageProcess(float deltaSeconds)
 	}
 	else
 	{
+		// 머티리얼 색상에 흰색을 입힌다.
+		dynamicMat->SetVectorParameterValue(FName("hitColor"), FVector4(1, 1, 1, 1));
 		enemyState = EEnemyState::MOVE;
 	}
 }
@@ -289,5 +312,10 @@ void AEnemy::Die()
 	GetWorldTimerManager().SetTimer(deadHandler, FTimerDelegate::CreateLambda([&]() {
 		Destroy();
 		}), 5.6f, false);*/
+}
+
+int32 AEnemy::SelectIdleAnimation()
+{
+	return FMath::RandRange(1, 4);
 }
 

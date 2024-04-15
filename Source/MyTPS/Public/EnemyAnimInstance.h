@@ -22,6 +22,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="MySettings")
 	EEnemyState currentState;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="MySettings")
+	int32 idleNumber = 1;
+
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 

@@ -10,7 +10,11 @@ void UEnemyAnimInstance::NativeInitializeAnimation()
 	Super::NativeInitializeAnimation();
 
 	enemy = Cast<AEnemy>(GetOwningActor());
-	
+	if (enemy != nullptr)
+	{
+		idleNumber = enemy->SelectIdleAnimation();
+		UE_LOG(LogTemp, Warning, TEXT("AnimBP idle number:  %d"), idleNumber);
+	}
 }
 
 void UEnemyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)

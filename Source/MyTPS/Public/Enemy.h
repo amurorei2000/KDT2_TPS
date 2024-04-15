@@ -69,7 +69,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "MySettings")
 	class UAnimMontage* death_montage;
 
+	int32 idleAnimNumber = 1;
+
 	void OnDamaged(int32 dmg, AActor* attacker);
+	int32 SelectIdleAnimation();
 
 private:
 	UPROPERTY()
@@ -81,6 +84,8 @@ private:
 	int32 currentHP = 0;
 	FVector hitLocation;
 	FVector hitDirection;
+	class UEnemyAnimInstance* anim;
+	class UMaterialInstanceDynamic* dynamicMat;
 
 	void Idle(float deltaSeconds);
 	void MoveToTarget(float deltaSeconds);
@@ -89,5 +94,5 @@ private:
 	void ReturnHome(float deltaSeconds);
 	void DamageProcess(float deltaSeconds);
 	void Die();
-
+	
 };
