@@ -36,6 +36,10 @@ public:
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
+	class UWidgetComponent* floatingWidgetComp;
+
+
 	UPROPERTY(EditAnywhere, Category = "MySettings")
 	EEnemyState enemyState = EEnemyState::IDLE;
 
@@ -74,6 +78,9 @@ public:
 	void OnDamaged(int32 dmg, AActor* attacker);
 	int32 SelectIdleAnimation();
 
+	UFUNCTION()
+	FORCEINLINE AActor* GetCurrentTarget() { return target; };
+
 private:
 	UPROPERTY()
 	class AActor* target;
@@ -86,6 +93,7 @@ private:
 	FVector hitDirection;
 	class UEnemyAnimInstance* anim;
 	class UMaterialInstanceDynamic* dynamicMat;
+	class UEnemyHealthWidget* healthWidget;
 
 	void Idle(float deltaSeconds);
 	void MoveToTarget(float deltaSeconds);
@@ -94,5 +102,5 @@ private:
 	void ReturnHome(float deltaSeconds);
 	void DamageProcess(float deltaSeconds);
 	void Die();
-	
+	FRotator BillboardWidgetComponent(class AActor* camActor);
 };

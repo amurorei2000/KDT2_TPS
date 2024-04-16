@@ -2,6 +2,7 @@
 
 
 #include "EnemyAnimInstance.h"
+#include "TPSPlayer.h"
 
 
 
@@ -29,7 +30,13 @@ void UEnemyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 void UEnemyAnimInstance::AnimNotify_Kick()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Attack Player!"));
+	ATPSPlayer* player = Cast<ATPSPlayer>(enemy->GetCurrentTarget());
+
+	if (player != nullptr)
+	{
+		player->OnDamaged(3);
+		UE_LOG(LogTemp, Warning, TEXT("Attack Player!"));
+	}
 }
 
 void UEnemyAnimInstance::AnimNotify_Destroy()

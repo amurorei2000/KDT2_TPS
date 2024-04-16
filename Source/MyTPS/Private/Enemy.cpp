@@ -7,6 +7,10 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EnemyAnimInstance.h"
+#include "Components/WidgetComponent.h"
+#include "Camera/CameraComponent.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "EnemyHealthWidget.h"
 
 
 AEnemy::AEnemy()
@@ -15,6 +19,13 @@ AEnemy::AEnemy()
 
 	GetCapsuleComponent()->SetCollisionProfileName(FName("EnemyPreset"));
 	GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+
+	floatingWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("Floating Widget Component"));
+	floatingWidgetComp->SetupAttachment(GetMesh());
+	floatingWidgetComp->SetRelativeLocation(FVector(0, 0, 210));
+	floatingWidgetComp->SetRelativeRotation(FRotator(0, 90, 0));
+	floatingWidgetComp->SetWidgetSpace(EWidgetSpace::World);
+	floatingWidgetComp->SetDrawSize(FVector2D(150, 100));
 }
 
 void AEnemy::BeginPlay()
@@ -45,6 +56,9 @@ void AEnemy::BeginPlay()
 	UMaterialInterface* currentMat = GetMesh()->GetMaterial(0);
 	dynamicMat = UMaterialInstanceDynamic::Create(currentMat, nullptr);
 	GetMesh()->SetMaterial(0, dynamicMat);
+
+	// 위젯 컴포넌트에 할당되어 있는 위젯 인스턴스를 가져온다.
+	healthWidget = Cast<UEnemyHealthWidget>(floatingWidgetComp->GetWidget());
 }
 
 void AEnemy::Tick(float DeltaTime)
@@ -79,6 +93,9 @@ void AEnemy::Tick(float DeltaTime)
 	}
 
 	DrawDebugSphere(GetWorld(), originLocation, limitDistance, 30, FColor::Green, false, 0, 0, 3);
+
+	// 위젯 빌보드
+	floatingWidgetComp->SetWorldRotation(BillboardWidgetComponent(target));
 }
 
 void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -142,7 +159,7 @@ void AEnemy::MoveToTarget(float deltaSeconds)
 	if (FVector::Distance(originLocation, GetActorLocation()) > limitDistance)
 	{
 		enemyState = EEnemyState::RETURN;
-		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *UEnum::GetValueAsString<EEnemyState>(enemyState));
+		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *StaticEnum<EEnemyState>()->GetValueAsString(enemyState));
 		return;
 	}
 
@@ -167,7 +184,7 @@ void AEnemy::MoveToTarget(float deltaSeconds)
 	else
 	{
 		enemyState = EEnemyState::ATTACK;
-		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *UEnum::GetValueAsString<EEnemyState>(enemyState));
+		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *StaticEnum<EEnemyState>()->GetValueAsString(enemyState));
 	}
 }
 
@@ -181,7 +198,7 @@ void AEnemy::Attack()
 	else
 	{
 		enemyState = EEnemyState::MOVE;
-		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *UEnum::GetValueAsString<EEnemyState>(enemyState));
+		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *StaticEnum<EEnemyState>()->GetValueAsString(enemyState));
 	}
 }
 
@@ -246,8 +263,13 @@ void AEnemy::OnDamaged(int32 dmg, AActor* attacker)
 	{
 		return;
 	}
-
+	
+	// 현재 체력 갱신
 	currentHP = FMath::Clamp(currentHP - dmg, 0, maxHP);
+	if (healthWidget != nullptr)
+	{
+		healthWidget->SetHealthBar((float)currentHP / (float)maxHP, FLinearColor(1.0f, 0.138f, 0.059f, 1.0f));
+	}
 
 	// 데미지 계산 결과 현재 체력이 0보다 크다면....
 	if (currentHP > 0)
@@ -312,6 +334,24 @@ void AEnemy::Die()
 	GetWorldTimerManager().SetTimer(deadHandler, FTimerDelegate::CreateLambda([&]() {
 		Destroy();
 		}), 5.6f, false);*/
+}
+
+// 카메라 컴포넌트를 가지고 있는 액터를 위젯 컴포넌트가 바라보도록 회전 값을 계산해주는 함수
+FRotator AEnemy::BillboardWidgetComponent(class AActor* camActor)
+{
+	ATPSPlayer* player = Cast<ATPSPlayer>(target);
+	if (player != nullptr)
+	{
+		FVector lookDir = (player->cameraComp->GetComponentLocation() - floatingWidgetComp->GetComponentLocation()).GetSafeNormal();
+		FRotator lookRot = UKismetMathLibrary::MakeRotFromX(lookDir);
+		//FRotator lookRot = lookDir.ToOrientationRotator();
+
+		return lookRot;
+	}
+	else
+	{
+		return FRotator::ZeroRotator;
+	}
 }
 
 int32 AEnemy::SelectIdleAnimation()

@@ -31,6 +31,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
 	class UStaticMeshComponent* gunMeshComp;
 
+	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
+	class UWidgetComponent* floatingWidgetComp;
+
 	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
 	class UInputMappingContext* imc_tpsKeyMap;
 
@@ -79,9 +82,14 @@ public:
 	/*UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TArray<class UAnimationAsset*> anims;*/
 
+	int32 maxHP = 50;
 
 	void SetGunAnimType(bool sniper);
 	void SetCurrentWeaponNumber(bool bSniper);
+	FORCEINLINE int32 GetCurrentHP() { return currentHP; };
+
+	UFUNCTION()
+	void OnDamaged(int32 dmg);
 
 private:
 	FVector moveDirection;
@@ -92,14 +100,14 @@ private:
 	bool bZoomIn = false;
 	float alpha = 0;
 	int32 currentWeaponNumber = 0;
+	int32 currentHP = 0;
+	class UEnemyHealthWidget* playerHealthWidget;
 
 	UPROPERTY()
 	class UPlayerAnimInstance* playerAnim;
 
 	UPROPERTY()
 	class ATPSMainGameModeBase* gm;
-	
-
 
 	UFUNCTION()
 	void PlayerMove(const FInputActionValue& value);

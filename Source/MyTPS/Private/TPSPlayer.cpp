@@ -16,6 +16,8 @@
 #include "WeaponActor.h"
 #include "PlayerAnimInstance.h"
 #include "Enemy.h"
+#include "EnemyHealthWidget.h"
+#include <../../../../../../../Source/Runtime/UMG/Public/Components/WidgetComponent.h>
 
 
 ATPSPlayer::ATPSPlayer()
@@ -59,6 +61,18 @@ ATPSPlayer::ATPSPlayer()
 
 	gunMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Gun Mesh"));
 	gunMeshComp->SetupAttachment(GetMesh(), FName("GunSocket"));
+
+	floatingWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("Floating Widget Component"));
+	floatingWidgetComp->SetupAttachment(GetMesh());
+	floatingWidgetComp->SetRelativeLocation(FVector(0, 0, 200));
+	floatingWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
+	floatingWidgetComp->SetDrawSize(FVector2D(150, 100));
+
+	static ConstructorHelpers::FClassFinder<UEnemyHealthWidget> playerHPWidget(TEXT("/Script/UMGEditor.WidgetBlueprint'/Game/UI/WBP_PlayerHealthWidget.WBP_PlayerHealthWidget_C'"));
+	if (playerHPWidget.Succeeded())
+	{
+		floatingWidgetComp->SetWidgetClass(playerHPWidget.Class);
+	}
 
 
 	// 캐릭터의 최대 이동 속력과 가속력을 설정한다.(cm/s)
@@ -109,6 +123,9 @@ void ATPSPlayer::BeginPlay()
 
 	gm = Cast<ATPSMainGameModeBase>(GetWorld()->GetAuthGameMode());
 	playerAnim = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance());
+
+	currentHP = maxHP;
+	playerHealthWidget = Cast<UEnemyHealthWidget>(floatingWidgetComp->GetWidget());
 }
 
 void ATPSPlayer::Tick(float DeltaTime)
@@ -165,6 +182,19 @@ void ATPSPlayer::SetGunAnimType(bool sniper)
 void ATPSPlayer::SetCurrentWeaponNumber(bool bSniper)
 {
 	currentWeaponNumber = (int32)bSniper;
+}
+
+void ATPSPlayer::OnDamaged(int32 dmg)
+{
+	currentHP = FMath::Clamp(currentHP - dmg, 0, maxHP);
+
+	if (playerHealthWidget != nullptr)
+	{
+		playerHealthWidget->SetHealthBar((float)currentHP / (float)maxHP, FLinearColor(1.0f, 0.138f, 0.059f, 1.0f));
+	}
+
+	// 카메라를 흔드는 효과를 준다.
+
 }
 
 void ATPSPlayer::PlayerMove(const FInputActionValue& value)
