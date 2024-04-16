@@ -29,3 +29,21 @@ void UMainWidget::SetSniperMode(bool modeOff)
 		img_zoom->SetVisibility(ESlateVisibility::Visible);
 	}
 }
+
+void UMainWidget::ShowHitBorder(bool bShow)
+{
+	if (bShow)
+	{
+		img_hitBorder->SetVisibility(ESlateVisibility::Visible);
+	}
+	else
+	{
+		img_hitBorder->SetVisibility(ESlateVisibility::Hidden);
+	}
+}
+
+void UMainWidget::PlayHitAnimation()
+{
+	StopAnimation(HitAnimation);
+	PlayAnimationForward(HitAnimation);
+}

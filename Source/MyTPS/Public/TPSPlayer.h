@@ -73,11 +73,18 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TArray<FVector> gunOffset;
 
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	TSubclassOf<class UCameraShakeBase> playerHitShake_bp;
+
 	UPROPERTY()
 	class AWeaponActor* attachedWeapon;
 
 	UPROPERTY(EditAnywhere, Category="MySettings|Animations")
 	TArray<class UAnimMontage*> fire_montages;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Animations")
+	class UAnimMontage* hitMotage;
+
 
 	/*UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TArray<class UAnimationAsset*> anims;*/

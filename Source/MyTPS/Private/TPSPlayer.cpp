@@ -194,7 +194,28 @@ void ATPSPlayer::OnDamaged(int32 dmg)
 	}
 
 	// 카메라를 흔드는 효과를 준다.
+	APlayerController* pc = GetController<APlayerController>();
+	if (pc != nullptr)
+	{
+		pc->ClientStopCameraShake(playerHitShake_bp);
+		pc->ClientStartCameraShake(playerHitShake_bp);
+	}
 
+	// 히트 UI를 표시한다.
+	/*gm->mainWidget_inst->ShowHitBorder(true);
+
+	FTimerHandle hitBorderHandler;
+
+	GetWorldTimerManager().SetTimer(hitBorderHandler, FTimerDelegate::CreateLambda([&]() {
+		gm->mainWidget_inst->ShowHitBorder(false);
+		}), 0.4f, false);*/
+	gm->mainWidget_inst->PlayHitAnimation();
+
+	int32 number = FMath::RandRange(1, 4);
+	//FString sectionName = FString("hit") + FString::FromInt(number);
+	FString sectionName = FString::Printf(TEXT("hit%d"), number);
+
+	PlayAnimMontage(hitMotage, 1.0f, FName(sectionName));
 }
 
 void ATPSPlayer::PlayerMove(const FInputActionValue& value)

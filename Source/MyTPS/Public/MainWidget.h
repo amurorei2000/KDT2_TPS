@@ -24,9 +24,17 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "MySettings", meta = (BindWidget))
 	class UImage* img_zoom;
 
+	UPROPERTY(VisibleAnywhere, Category = "MySettings", meta = (BindWidget))
+	class UImage* img_hitBorder;
+
+	UPROPERTY(VisibleAnywhere, Category = "MySettings", meta = (BindWidgetAnim), Transient)
+	class UWidgetAnimation* HitAnimation;
+
 	UPROPERTY(EditAnywhere, Category = "MySettings")
 	TArray<class UTexture2D*> weaponTextures;
 
 	void SetWeaponTexture(int32 index);
 	void SetSniperMode(bool modeOff);
+	void ShowHitBorder(bool bShow);
+	void PlayHitAnimation();
 };
