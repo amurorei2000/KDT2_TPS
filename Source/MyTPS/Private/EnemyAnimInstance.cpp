@@ -34,7 +34,7 @@ void UEnemyAnimInstance::AnimNotify_Kick()
 
 	if (player != nullptr)
 	{
-		player->OnDamaged(3);
+		player->OnDamaged(3, enemy);
 		UE_LOG(LogTemp, Warning, TEXT("Attack Player!"));
 	}
 }

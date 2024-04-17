@@ -20,3 +20,18 @@ void ATPSMainGameModeBase::BeginPlay()
 		}
 	}
 }
+
+void ATPSMainGameModeBase::RespawnPlayer(AController* NewPlayer, APawn* previousPawn)
+{
+	// 기존 폰에서 플레이어 컨트롤러를 떼어낸다.
+	NewPlayer->UnPossess();
+
+	// 게임 모드 베이스에 있는 재생성 함수를 실행한다.
+	RestartPlayer(NewPlayer);
+
+	// 기존의 폰을 제거한다.
+	previousPawn->Destroy();
+}
+
+
+

@@ -81,6 +81,9 @@ public:
 	UFUNCTION()
 	FORCEINLINE AActor* GetCurrentTarget() { return target; };
 
+	UFUNCTION()
+	FORCEINLINE void RemoveTarget() { target = nullptr; };
+
 private:
 	UPROPERTY()
 	class AActor* target;
@@ -94,6 +97,8 @@ private:
 	class UEnemyAnimInstance* anim;
 	class UMaterialInstanceDynamic* dynamicMat;
 	class UEnemyHealthWidget* healthWidget;
+	class AAIController* aiCon;
+
 
 	void Idle(float deltaSeconds);
 	void MoveToTarget(float deltaSeconds);

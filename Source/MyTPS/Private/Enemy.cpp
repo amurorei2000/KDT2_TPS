@@ -11,6 +11,9 @@
 #include "Camera/CameraComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "EnemyHealthWidget.h"
+#include "AIController.h"
+#include "NavigationSystem.h"
+#include <../../../../../../../Source/Runtime/NavigationSystem/Public/NavigationPath.h>
 
 
 AEnemy::AEnemy()
@@ -26,6 +29,9 @@ AEnemy::AEnemy()
 	floatingWidgetComp->SetRelativeRotation(FRotator(0, 90, 0));
 	floatingWidgetComp->SetWidgetSpace(EWidgetSpace::World);
 	floatingWidgetComp->SetDrawSize(FVector2D(150, 100));
+
+	// AI Controller의 자동 Possess 기능 실행을 월드에 배치되었을 때 또는 스폰 됐을 때 실행하는 것으로 설정한다.
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 }
 
 void AEnemy::BeginPlay()
@@ -59,6 +65,8 @@ void AEnemy::BeginPlay()
 
 	// 위젯 컴포넌트에 할당되어 있는 위젯 인스턴스를 가져온다.
 	healthWidget = Cast<UEnemyHealthWidget>(floatingWidgetComp->GetWidget());
+
+	aiCon = GetController<AAIController>();
 }
 
 void AEnemy::Tick(float DeltaTime)
@@ -106,6 +114,10 @@ void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 void AEnemy::Idle(float deltaSeconds)
 {
+	if (target == nullptr)
+	{
+		return;
+	}
 	//UE_LOG(LogTemp, Warning, TEXT("Idle State"));
 
 	// 5초가 지나면 상태를 MOVE 상태로 변경한다.
@@ -149,7 +161,17 @@ void AEnemy::Idle(float deltaSeconds)
 		enemyState = EEnemyState::MOVE;
 		UE_LOG(LogTemp, Warning, TEXT("I see target!"));
 
-		
+		// 2. 네비게이션 이동 방식
+		// 만일, aiCon 변수의 값이 있다면...
+		if (aiCon != nullptr)
+		{
+			// target 방향으로 네비게이션 경로대로 이동한다.
+			EPathFollowingRequestResult::Type req = aiCon->MoveToActor(target);
+			FString requestString = UEnum::GetValueAsString<EPathFollowingRequestResult::Type>(req);
+			UE_LOG(LogTemp, Warning, TEXT("Nav Request: %s"), *requestString);
+
+			//aiCon->MoveToLocation(target->GetActorLocation(), 10);
+		}
 	}
 }
 
@@ -158,6 +180,7 @@ void AEnemy::MoveToTarget(float deltaSeconds)
 	// 기준 위치로부터 추격 한계 거리 이상 떨어져 있다면...
 	if (FVector::Distance(originLocation, GetActorLocation()) > limitDistance)
 	{
+		//aiCon->MoveToLocation(originLocation, 5, false);
 		enemyState = EEnemyState::RETURN;
 		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *StaticEnum<EEnemyState>()->GetValueAsString(enemyState));
 		return;
@@ -166,23 +189,49 @@ void AEnemy::MoveToTarget(float deltaSeconds)
 	//UE_LOG(LogTemp, Warning, TEXT("MoveToTarget State"));
 	// 타겟이 있다면 타겟을 쫓아간다.
 	// 필요 요소: 방향, 추격 속력, 공격 가능 거리(최대 접근 거리)
-	FVector targetDir = target->GetActorLocation() - GetActorLocation();
-	targetDir.Z = 0;
+	//FVector targetDir = target->GetActorLocation() - GetActorLocation();
+	//targetDir.Z = 0;
 
-	if (targetDir.Length() > attackDistance)
+	//if (targetDir.Length() > attackDistance)
+	if(FVector::Distance(target->GetActorLocation(), GetActorLocation()) > attackDistance)
 	{
-		GetCharacterMovement()->MaxWalkSpeed = traceSpeed;
-		AddMovementInput(targetDir.GetSafeNormal());
-		
-		// 이동 방향으로 회전한다.
-		FRotator currentRot = GetActorRotation();
-		FRotator targetRot = targetDir.ToOrientationRotator();
+		// 1. 기본 이동 방식
+		//GetCharacterMovement()->MaxWalkSpeed = traceSpeed;
+		//AddMovementInput(targetDir.GetSafeNormal());
+		//
+		//// 이동 방향으로 회전한다.
+		//FRotator currentRot = GetActorRotation();
+		//FRotator targetRot = targetDir.ToOrientationRotator();
 
-		FRotator calcRot = FMath::Lerp(currentRot, targetRot, deltaSeconds * rotSpeed);
-		SetActorRotation(calcRot);
+		//FRotator calcRot = FMath::Lerp(currentRot, targetRot, deltaSeconds * rotSpeed);
+		//SetActorRotation(calcRot);
+		
+		// 타겟까지의 이동 경로를 시각화한다.
+		UWorld* currentWorld = GetWorld();
+		UNavigationSystemV1* navSystem = UNavigationSystemV1::GetCurrent(currentWorld);
+		if (navSystem != nullptr)
+		{
+			//UNavigationPath* calcPath = navSystem->FindPathToLocationSynchronously(currentWorld, GetActorLocation(), target->GetActorLocation());
+
+			UNavigationPath* calcPath = navSystem->FindPathToActorSynchronously(currentWorld, GetActorLocation(), target);
+			TArray<FVector> paths = calcPath->PathPoints;
+
+			if (paths.Num() > 1)
+			{
+				for (int32 i = 0; i < paths.Num() - 1; i++)
+				{
+					DrawDebugLine(currentWorld, paths[i] + FVector(0, 0, 80), paths[i + 1] + FVector(0, 0, 80), FColor::Red, false, 0, 0, 2);
+				}
+			}
+		}
+		if (aiCon != nullptr)
+		{
+			aiCon->MoveToLocation(target->GetActorLocation(), 5, true);
+		}
 	}
 	else
 	{
+		aiCon->StopMovement();
 		enemyState = EEnemyState::ATTACK;
 		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *StaticEnum<EEnemyState>()->GetValueAsString(enemyState));
 	}
@@ -197,6 +246,7 @@ void AEnemy::Attack()
 	}
 	else
 	{
+		aiCon->MoveToActor(target);
 		enemyState = EEnemyState::MOVE;
 		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *StaticEnum<EEnemyState>()->GetValueAsString(enemyState));
 	}
@@ -218,6 +268,7 @@ void AEnemy::AttackDelay(float deltaSeconds)
 	{
 		if (currentTime > attackDelayTime * 0.65f)
 		{
+			aiCon->MoveToActor(target, 10);
 			enemyState = EEnemyState::MOVE;
 		}
 	}
@@ -231,8 +282,10 @@ void AEnemy::ReturnHome(float deltaSeconds)
 	FVector dir = originLocation - GetActorLocation();
 	
 	// 만일, 10센티미터 이내로 접근했다면...
-	if (dir.Length() < 10)
+	if (dir.Length() < 20)
 	{
+		aiCon->StopMovement();
+
 		// 강제로 시작 위치로 이동시킨다.
 		SetActorLocation(originLocation);
 		SetActorRotation(originRotation);
@@ -248,11 +301,32 @@ void AEnemy::ReturnHome(float deltaSeconds)
 	else
 	{
 		// 시작 위치 쪽으로 이동한다.
-		GetCharacterMovement()->MaxWalkSpeed = returnSpeed;
-		AddMovementInput(dir.GetSafeNormal());
+		//GetCharacterMovement()->MaxWalkSpeed = returnSpeed;
+		//AddMovementInput(dir.GetSafeNormal());
 
-		FRotator lookRotation = FMath::Lerp(GetActorRotation(), dir.ToOrientationRotator(), deltaSeconds * rotSpeed);
-		SetActorRotation(lookRotation);
+		//FRotator lookRotation = FMath::Lerp(GetActorRotation(), dir.ToOrientationRotator(), deltaSeconds * rotSpeed);
+		//SetActorRotation(lookRotation);
+
+		UWorld* currentWorld = GetWorld();
+		UNavigationSystemV1* navSystem = UNavigationSystemV1::GetCurrent(currentWorld);
+		if (navSystem != nullptr)
+		{
+			//UNavigationPath* calcPath = navSystem->FindPathToLocationSynchronously(currentWorld, GetActorLocation(), target->GetActorLocation());
+
+			UNavigationPath* calcPath = navSystem->FindPathToLocationSynchronously(currentWorld, GetActorLocation(), originLocation);
+			TArray<FVector> paths = calcPath->PathPoints;
+
+			if (paths.Num() > 1)
+			{
+				for (int32 i = 0; i < paths.Num() - 1; i++)
+				{
+					DrawDebugLine(currentWorld, paths[i] + FVector(0, 0, 80), paths[i + 1] + FVector(0, 0, 80), FColor::Red, false, 0, 0, 2);
+				}
+			}
+		}
+
+		// 돌아갈 때 다른 이동 중인 Enemy와 블럭 효과가 발생되는 문제
+		aiCon->MoveToLocation(originLocation, 5, false, true, true);
 	}
 
 }
@@ -277,7 +351,9 @@ void AEnemy::OnDamaged(int32 dmg, AActor* attacker)
 		// 피격 상태로 전환한다.
 		enemyState = EEnemyState::DAMAGED;
 		hitLocation = GetActorLocation();
-		hitDirection = (GetActorLocation() - attacker->GetActorLocation()).GetSafeNormal();
+		hitDirection = GetActorLocation() - attacker->GetActorLocation();
+		hitDirection.Z = 0;
+		hitDirection.Normalize();
 		
 		// 머티리얼 색상에 붉은 색을 입힌다.
 		dynamicMat->SetVectorParameterValue(FName("hitColor"), FVector4(1, 0, 0, 1));
@@ -294,11 +370,20 @@ void AEnemy::OnDamaged(int32 dmg, AActor* attacker)
 
 void AEnemy::DamageProcess(float deltaSeconds)
 {
+	currentTime += deltaSeconds;
+	if (currentTime > 1.0f)
+	{
+		aiCon->MoveToActor(target);
+		dynamicMat->SetVectorParameterValue(FName("hitColor"), FVector4(1, 1, 1, 1));
+		enemyState = EEnemyState::MOVE;
+		return;
+	}
+
 	// 피격 효과를 준다(넉백 효과 부여).
 	//FVector backVec = GetActorForwardVector() * -1.0f;
 	FVector targetLoc = hitLocation + hitDirection * 50.0f;
 	FVector knockBackLocation = FMath::Lerp(GetActorLocation(), targetLoc, deltaSeconds * 7.0f);
-	
+
 	if (FVector::Distance(GetActorLocation(), targetLoc) > 10)
 	{
 		SetActorLocation(knockBackLocation, true);
@@ -306,6 +391,7 @@ void AEnemy::DamageProcess(float deltaSeconds)
 	else
 	{
 		// 머티리얼 색상에 흰색을 입힌다.
+		aiCon->MoveToActor(target);
 		dynamicMat->SetVectorParameterValue(FName("hitColor"), FVector4(1, 1, 1, 1));
 		enemyState = EEnemyState::MOVE;
 	}

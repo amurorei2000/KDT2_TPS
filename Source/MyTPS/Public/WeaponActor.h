@@ -33,6 +33,9 @@ public:
 	int32 magazine = 30;
 
 	UPROPERTY(EditAnywhere, Category="MySettings")
+	float fireDistance = 1000.0f;
+
+	UPROPERTY(EditAnywhere, Category="MySettings")
 	FVector snapOffset;
 
 	UPROPERTY(EditAnywhere, Category="MySettings")

@@ -104,7 +104,7 @@ void ATPSPlayer::BeginPlay()
 	Super::BeginPlay();
 	
 	//APlayerController* pc = GetWorld()->GetFirstPlayerController();
-	APlayerController* pc = GetController<APlayerController>();
+	pc = GetController<APlayerController>();
 	if (pc != nullptr)
 	{
 		UEnhancedInputLocalPlayerSubsystem* subsys = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(pc->GetLocalPlayer());
@@ -184,7 +184,7 @@ void ATPSPlayer::SetCurrentWeaponNumber(bool bSniper)
 	currentWeaponNumber = (int32)bSniper;
 }
 
-void ATPSPlayer::OnDamaged(int32 dmg)
+void ATPSPlayer::OnDamaged(int32 dmg, AEnemy* attacker)
 {
 	currentHP = FMath::Clamp(currentHP - dmg, 0, maxHP);
 
@@ -192,9 +192,26 @@ void ATPSPlayer::OnDamaged(int32 dmg)
 	{
 		playerHealthWidget->SetHealthBar((float)currentHP / (float)maxHP, FLinearColor(1.0f, 0.138f, 0.059f, 1.0f));
 	}
+	
+	if (currentHP <= 0)
+	{
+		attacker->RemoveTarget();
+		attacker->enemyState = EEnemyState::RETURN;
+
+		// 페이드 인 효과를 준다.
+		pc->PlayerCameraManager->StartCameraFade(0, 1, 1.5f, FLinearColor::Black);
+
+		FTimerHandle restartHandle;
+		GetWorldTimerManager().SetTimer(restartHandle, FTimerDelegate::CreateLambda([&]() {
+			// 시작 위치에서 다시 시작한다.
+			Cast<ATPSMainGameModeBase>(GetWorld()->GetAuthGameMode())->RespawnPlayer(pc, this);
+			}), 1.5f, false);
+		
+	}
+
+
 
 	// 카메라를 흔드는 효과를 준다.
-	APlayerController* pc = GetController<APlayerController>();
 	if (pc != nullptr)
 	{
 		pc->ClientStopCameraShake(playerHitShake_bp);
@@ -288,7 +305,7 @@ void ATPSPlayer::PlayerFire(const FInputActionValue& value)
 	// 라인 트레이스 방식
 	FHitResult hitInfo;
 	FVector startLoc = cameraComp->GetComponentLocation();
-	FVector endLoc = startLoc + cameraComp->GetForwardVector() * 1000.0f;
+	FVector endLoc = startLoc + cameraComp->GetForwardVector() * attachedWeapon->fireDistance;
 	// 충돌 체크에 포함할 오브젝트 타입
 	FCollisionObjectQueryParams objQueryParams;
 	objQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);

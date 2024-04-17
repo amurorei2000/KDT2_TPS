@@ -21,8 +21,9 @@ public:
 	UPROPERTY()
 	class UMainWidget* mainWidget_inst;
 
+	void RespawnPlayer(AController* NewPlayer, APawn* previousPawn);
+
 protected:
 	virtual void BeginPlay() override;
-
 
 };

@@ -88,7 +88,7 @@ public:
 
 	/*UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TArray<class UAnimationAsset*> anims;*/
-
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	int32 maxHP = 50;
 
 	void SetGunAnimType(bool sniper);
@@ -96,7 +96,7 @@ public:
 	FORCEINLINE int32 GetCurrentHP() { return currentHP; };
 
 	UFUNCTION()
-	void OnDamaged(int32 dmg);
+	void OnDamaged(int32 dmg, class AEnemy* attacker);
 
 private:
 	FVector moveDirection;
@@ -109,6 +109,9 @@ private:
 	int32 currentWeaponNumber = 0;
 	int32 currentHP = 0;
 	class UEnemyHealthWidget* playerHealthWidget;
+
+	UPROPERTY()
+	class APlayerController* pc;
 
 	UPROPERTY()
 	class UPlayerAnimInstance* playerAnim;
