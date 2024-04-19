@@ -6,6 +6,15 @@
 #include "GameFramework/Character.h"
 #include "TPSPlayer.generated.h"
 
+UENUM(BlueprintType)
+enum class EPlayerState
+{
+	READY,
+	PLAYING,
+	DEATH,
+};
+
+
 UCLASS()
 class MYTPS_API ATPSPlayer : public ACharacter
 {
@@ -75,6 +84,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TSubclassOf<class UCameraShakeBase> playerHitShake_bp;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	EPlayerState tpsPlayerState;
 
 	UPROPERTY()
 	class AWeaponActor* attachedWeapon;

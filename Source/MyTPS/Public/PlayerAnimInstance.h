@@ -27,6 +27,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MySettings")
 	bool bUseSniper = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MySettings")
+	bool bDead = false;
+	
+
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 

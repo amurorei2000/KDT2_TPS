@@ -27,7 +27,12 @@ void ATPSMainGameModeBase::RespawnPlayer(AController* NewPlayer, APawn* previous
 	NewPlayer->UnPossess();
 
 	// 게임 모드 베이스에 있는 재생성 함수를 실행한다.
-	RestartPlayer(NewPlayer);
+	//RestartPlayer(NewPlayer);
+	FTransform spawnTrans;
+	spawnTrans.SetLocation(FVector(-218, -1201, 91));
+	spawnTrans.SetRotation(FQuat::Identity);
+
+	RestartPlayerAtTransform(NewPlayer, spawnTrans);
 
 	// 기존의 폰을 제거한다.
 	previousPawn->Destroy();

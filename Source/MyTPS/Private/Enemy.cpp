@@ -13,7 +13,9 @@
 #include "EnemyHealthWidget.h"
 #include "AIController.h"
 #include "NavigationSystem.h"
-#include <../../../../../../../Source/Runtime/NavigationSystem/Public/NavigationPath.h>
+#include "NavigationPath.h"
+#include "NavigationInvokerComponent.h"
+#include "GrenadeActor.h"
 
 
 AEnemy::AEnemy()
@@ -29,6 +31,8 @@ AEnemy::AEnemy()
 	floatingWidgetComp->SetRelativeRotation(FRotator(0, 90, 0));
 	floatingWidgetComp->SetWidgetSpace(EWidgetSpace::World);
 	floatingWidgetComp->SetDrawSize(FVector2D(150, 100));
+
+	navInvokerComp = CreateDefaultSubobject<UNavigationInvokerComponent>(TEXT("NavInvoker Component"));
 
 	// AI Controller의 자동 Possess 기능 실행을 월드에 배치되었을 때 또는 스폰 됐을 때 실행하는 것으로 설정한다.
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -46,10 +50,10 @@ void AEnemy::BeginPlay()
 
 
 	// 월드에 있는 플레이어를 찾는다.
-	for (TActorIterator<ATPSPlayer> player(GetWorld()); player; ++player)
+	/*for (TActorIterator<ATPSPlayer> player(GetWorld()); player; ++player)
 	{
 		target = *player;
-	}
+	}*/
 
 	// 시작 위치를 정한다.
 	originLocation = GetActorLocation();
@@ -114,10 +118,6 @@ void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 void AEnemy::Idle(float deltaSeconds)
 {
-	if (target == nullptr)
-	{
-		return;
-	}
 	//UE_LOG(LogTemp, Warning, TEXT("Idle State"));
 
 	// 5초가 지나면 상태를 MOVE 상태로 변경한다.
@@ -131,46 +131,76 @@ void AEnemy::Idle(float deltaSeconds)
 	//}
 
 	// 자신의 전방을 기준으로 좌우 30도 이내, 거리 7미터의 범위에 플레이어 캐릭터가 접근하면 플레이어 캐릭터를 타겟으로 설정하고, 이동 상태로 전환한다.
-	// 1. 찾은 플레이어가 거리가 7미터 이내인지 확인한다.
-	float targetDistance = FVector::Distance(target->GetActorLocation(), GetActorLocation());
 
-	// 2. 찾은 플레이어가 전방 좌우 30도 이내에 있는지 확인한다.
-	FVector forwardVec = GetActorForwardVector();
-	FVector directionVec = (target->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+	// <1. 타겟 감지>
+	// sightDistance를 반경으로 주변에 있는 ATPSPlayer 클래스를 검색한다. -> TArray<ATPSPlayer>
+	// OverlapMulti 방식을 이용한다.
+	TArray<FOverlapResult> hitInfos;
+	FCollisionObjectQueryParams objectParams;
+	objectParams.AddObjectTypesToQuery(ECC_Pawn);
+	FCollisionQueryParams queryParams;
+	queryParams.AddIgnoredActor(this);
 
-	float cosTheta = FVector::DotProduct(forwardVec, directionVec);
-	float theta_radian = FMath::Acos(cosTheta);
-	float theta_degree = FMath::RadiansToDegrees(theta_radian);
+	bool bCheckResult = GetWorld()->OverlapMultiByObjectType(hitInfos, GetActorLocation(), FQuat::Identity, objectParams, FCollisionShape::MakeSphere(sightDistance), queryParams);
+
+	if (bCheckResult)
+	{
+		for (const FOverlapResult& hitInfo : hitInfos)
+		{
+			ATPSPlayer* player = Cast<ATPSPlayer>(hitInfo.GetActor());
+			if (player != nullptr && player->tpsPlayerState == EPlayerState::PLAYING)
+			{
+				target = player;
+				break;
+			}
+		}
+	}
+	else
+	{
+		target = nullptr;
+	}
+
+	// <2. 시야각 체크>
+	// 찾은 플레이어가 전방 좌우 30도 이내에 있는지 확인한다.
+	if (target != nullptr)
+	{
+		FVector forwardVec = GetActorForwardVector();
+		FVector directionVec = (target->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+
+		float cosTheta = FVector::DotProduct(forwardVec, directionVec);
+		float theta_radian = FMath::Acos(cosTheta);
+		float theta_degree = FMath::RadiansToDegrees(theta_radian);
 
 #pragma region Debuging
-	//if (cosTheta >= 0)
-	//{
-	//	UE_LOG(LogTemp, Warning, TEXT("Target is located forward me"));
-	//}
-	//else
-	//{
-	//	UE_LOG(LogTemp, Warning, TEXT("Target is located back me"));
-	//}
+		//if (cosTheta >= 0)
+		//{
+		//	UE_LOG(LogTemp, Warning, TEXT("Target is located forward me"));
+		//}
+		//else
+		//{
+		//	UE_LOG(LogTemp, Warning, TEXT("Target is located back me"));
+		//}
 
-	//UE_LOG(LogTemp, Warning, TEXT("Degree: %.2f"), theta_degree);
+		//UE_LOG(LogTemp, Warning, TEXT("Degree: %.2f"), theta_degree);
 #pragma endregion
 
-	// 3. 두 조건을 모두 만족하면 이동 상태로 전환한다.
-	if (targetDistance < sightDistance && cosTheta > 0 && theta_degree < sightAngle)
-	{
-		enemyState = EEnemyState::MOVE;
-		UE_LOG(LogTemp, Warning, TEXT("I see target!"));
-
-		// 2. 네비게이션 이동 방식
-		// 만일, aiCon 변수의 값이 있다면...
-		if (aiCon != nullptr)
+		// 시야 범위 내에 있다면 이동 상태로 전환한다.
+		if (cosTheta > 0 && theta_degree < sightAngle)
 		{
-			// target 방향으로 네비게이션 경로대로 이동한다.
-			EPathFollowingRequestResult::Type req = aiCon->MoveToActor(target);
-			FString requestString = UEnum::GetValueAsString<EPathFollowingRequestResult::Type>(req);
-			UE_LOG(LogTemp, Warning, TEXT("Nav Request: %s"), *requestString);
+			enemyState = EEnemyState::MOVE;
+			UE_LOG(LogTemp, Warning, TEXT("I see target!"));
 
-			//aiCon->MoveToLocation(target->GetActorLocation(), 10);
+			// <네비게이션 이동 방식>
+			// 만일, aiCon 변수의 값이 있다면...
+			if (aiCon != nullptr)
+			{
+				// target 방향으로 네비게이션 경로대로 이동한다.
+				EPathFollowingRequestResult::Type req = aiCon->MoveToActor(target);
+				FString requestString = UEnum::GetValueAsString<EPathFollowingRequestResult::Type>(req);
+				UE_LOG(LogTemp, Warning, TEXT("Nav Request: %s"), *requestString);
+
+				//aiCon->MoveToLocation(target->GetActorLocation(), 10);
+			}
 		}
 	}
 }
@@ -239,6 +269,14 @@ void AEnemy::MoveToTarget(float deltaSeconds)
 
 void AEnemy::Attack()
 {
+	// 타겟이 이미 사망 상태일 경우 즉시 Return 상태로 전환한다.
+	if (Cast<ATPSPlayer>(target)->tpsPlayerState == EPlayerState::DEATH)
+	{
+		target = nullptr;
+		enemyState = EEnemyState::RETURN;
+		return;
+	}
+
 	if (FVector::Distance(GetActorLocation(), target->GetActorLocation()) < attackDistance + 15.0f)
 	{
 		
@@ -254,6 +292,13 @@ void AEnemy::Attack()
 
 void AEnemy::AttackDelay(float deltaSeconds)
 {
+	// 타겟이 이미 사망 상태일 경우 즉시 Return 상태로 전환한다.
+	if (Cast<ATPSPlayer>(target)->tpsPlayerState == EPlayerState::DEATH)
+	{
+		target = nullptr;
+		enemyState = EEnemyState::RETURN;
+		return;
+	}
 
 	// 공격 대기 시간이 경과되면 다시 ATTACK 상태로 되돌린다.
 	currentTime += deltaSeconds;
@@ -443,5 +488,35 @@ FRotator AEnemy::BillboardWidgetComponent(class AActor* camActor)
 int32 AEnemy::SelectIdleAnimation()
 {
 	return FMath::RandRange(1, 4);
+}
+
+void AEnemy::HitBomb(int32 dmg, const FVector& attackDir, float maxRadius, float upPower)
+{
+	// 1. 데미지를 적용시킨다.
+	currentHP = FMath::Clamp(currentHP - dmg, 0, maxHP);
+	healthWidget->SetHealthBar((float)currentHP / (float)maxHP, FLinearColor(1.0f, 0.138f, 0.059f, 1.0f));
+
+	// 2. 랙돌 적용을 해준다.
+	//GetMesh()->SetCollisionProfileName(FName("Ragdoll"));
+	//GetMesh()->SetSimulatePhysics(true);
+
+	// 3. 폭발의 중심지로부터 바깥쪽 방향으로 날려보낸다.
+	GetCapsuleComponent()->SetSimulatePhysics(true);
+	bombDir = attackDir;
+	bombDist = maxRadius;
+	bombUpPower = upPower;
+
+	GetWorldTimerManager().SetTimerForNextTick(this, &AEnemy::BombImpact);
+		
+	
+}
+
+void AEnemy::BombImpact()
+{
+	float power = (bombDist - bombDir.Length()) * 500.0f;
+	bombDir.Normalize();
+	bombDir.Z = bombUpPower;
+
+	GetCapsuleComponent()->AddImpulse(bombDir * power);
 }
 

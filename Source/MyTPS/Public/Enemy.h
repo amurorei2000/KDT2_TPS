@@ -39,6 +39,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
 	class UWidgetComponent* floatingWidgetComp;
 
+	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
+	class UNavigationInvokerComponent* navInvokerComp;
+
 
 	UPROPERTY(EditAnywhere, Category = "MySettings")
 	EEnemyState enemyState = EEnemyState::IDLE;
@@ -78,6 +81,8 @@ public:
 	void OnDamaged(int32 dmg, AActor* attacker);
 	int32 SelectIdleAnimation();
 
+	void HitBomb(int32 dmg, const FVector& attackDir, float maxRadius, float upPower);
+
 	UFUNCTION()
 	FORCEINLINE AActor* GetCurrentTarget() { return target; };
 
@@ -98,6 +103,9 @@ private:
 	class UMaterialInstanceDynamic* dynamicMat;
 	class UEnemyHealthWidget* healthWidget;
 	class AAIController* aiCon;
+	FVector bombDir;
+	float bombDist;
+	float bombUpPower;
 
 
 	void Idle(float deltaSeconds);
@@ -108,4 +116,5 @@ private:
 	void DamageProcess(float deltaSeconds);
 	void Die();
 	FRotator BillboardWidgetComponent(class AActor* camActor);
+	void BombImpact();
 };

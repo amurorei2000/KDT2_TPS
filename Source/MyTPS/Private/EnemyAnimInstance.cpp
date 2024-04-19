@@ -34,8 +34,16 @@ void UEnemyAnimInstance::AnimNotify_Kick()
 
 	if (player != nullptr)
 	{
-		player->OnDamaged(3, enemy);
-		UE_LOG(LogTemp, Warning, TEXT("Attack Player!"));
+		if (player->tpsPlayerState == EPlayerState::PLAYING)
+		{
+			player->OnDamaged(3, enemy);
+			UE_LOG(LogTemp, Warning, TEXT("Attack Player!"));
+		}
+		else if (player->tpsPlayerState == EPlayerState::DEATH)
+		{
+			enemy->RemoveTarget();
+			enemy->enemyState = EEnemyState::RETURN;
+		}
 	}
 }
 

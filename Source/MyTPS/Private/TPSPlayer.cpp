@@ -94,27 +94,30 @@ ATPSPlayer::ATPSPlayer()
 	// 점프력 설정
 	GetCharacterMovement()->JumpZVelocity = 600.0f;
 	GetCharacterMovement()->AirControl = 0.05f;
-	
+
 	// 연속 점프 가능 수
 	JumpMaxCount = 2;
+
+	// 0번 플레이어(로컬 플레이어)로 등록한다.
+	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
 void ATPSPlayer::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	//APlayerController* pc = GetWorld()->GetFirstPlayerController();
 	pc = GetController<APlayerController>();
 	if (pc != nullptr)
 	{
 		UEnhancedInputLocalPlayerSubsystem* subsys = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(pc->GetLocalPlayer());
-		
+
 		if (subsys != nullptr)
 		{
 			subsys->AddMappingContext(imc_tpsKeyMap, 0);
 		}
 	}
-	
+
 	// 월드에 있는 총알 피격 효과 액터를 찾아서 변수에 참조시킨다.
 	for (TActorIterator<ABulletFXActor> iter(GetWorld()); iter; ++iter)
 	{
@@ -126,6 +129,8 @@ void ATPSPlayer::BeginPlay()
 
 	currentHP = maxHP;
 	playerHealthWidget = Cast<UEnemyHealthWidget>(floatingWidgetComp->GetWidget());
+
+	tpsPlayerState = EPlayerState::PLAYING;
 }
 
 void ATPSPlayer::Tick(float DeltaTime)
@@ -134,7 +139,7 @@ void ATPSPlayer::Tick(float DeltaTime)
 
 	// 카메라와 캐릭터 사이의 방해물을 검사하는 함수
 	//CheckObstacles();
-	
+
 	// 카메라 줌 인 아웃 처리
 	float direction = bZoomIn ? 1.0f : -1.0f;
 	alpha += DeltaTime * direction * 5.0f;
@@ -192,24 +197,30 @@ void ATPSPlayer::OnDamaged(int32 dmg, AEnemy* attacker)
 	{
 		playerHealthWidget->SetHealthBar((float)currentHP / (float)maxHP, FLinearColor(1.0f, 0.138f, 0.059f, 1.0f));
 	}
-	
+
 	if (currentHP <= 0)
 	{
+		// 자신의 상태를 죽음 상태로 전환한다.
+		tpsPlayerState = EPlayerState::DEATH;
+		playerAnim->bDead = true;
+		GetCharacterMovement()->DisableMovement();
+
 		attacker->RemoveTarget();
 		attacker->enemyState = EEnemyState::RETURN;
 
 		// 페이드 인 효과를 준다.
-		pc->PlayerCameraManager->StartCameraFade(0, 1, 1.5f, FLinearColor::Black);
+		if (pc != nullptr)
+		{
+			pc->PlayerCameraManager->StartCameraFade(0, 1, 3.0f, FLinearColor::Black);
 
-		FTimerHandle restartHandle;
-		GetWorldTimerManager().SetTimer(restartHandle, FTimerDelegate::CreateLambda([&]() {
-			// 시작 위치에서 다시 시작한다.
-			Cast<ATPSMainGameModeBase>(GetWorld()->GetAuthGameMode())->RespawnPlayer(pc, this);
-			}), 1.5f, false);
-		
+			FTimerHandle restartHandle;
+			GetWorldTimerManager().SetTimer(restartHandle, FTimerDelegate::CreateLambda([&]() {
+				// 시작 위치에서 다시 시작한다.
+				Cast<ATPSMainGameModeBase>(GetWorld()->GetAuthGameMode())->RespawnPlayer(pc, this);
+				}), 3.0f, false);
+		}
+
 	}
-
-
 
 	// 카메라를 흔드는 효과를 준다.
 	if (pc != nullptr)
@@ -465,7 +476,7 @@ void ATPSPlayer::CheckObstacles()
 		// 충돌한 지점에서 10cm 앞쪽에 카메라를 위치시킨다.
 		FVector camLocation = hitInfo.ImpactPoint + hitInfo.ImpactNormal * 10;
 		FVector lerpLocation = FMath::Lerp(cameraComp->GetComponentLocation(), camLocation, GetWorld()->GetDeltaSeconds() * 5);
-		
+
 		cameraComp->SetWorldLocation(lerpLocation);
 	}
 	// 그렇지 않다면...
@@ -473,7 +484,7 @@ void ATPSPlayer::CheckObstacles()
 	{
 		// 카메라를 원래 위치에 위치시킨다.
 		//cameraComp->SetRelativeLocation(camPosition);
-		
+
 		// 카메라 지연 효과
 		SetCameraLag(GetWorld()->GetDeltaSeconds(), 5.0f);
 	}
@@ -495,7 +506,7 @@ void ATPSPlayer::ChangeGunType(int32 number)
 	// 메시 변경
 	gunMeshComp->SetStaticMesh(gunTypes[number]);
 	gunMeshComp->SetRelativeLocation(gunOffset[number]);
-	
+
 	// UI 텍스쳐 변경
 	if (gm != nullptr)
 	{
