@@ -18,6 +18,8 @@
 #include "Enemy.h"
 #include "EnemyHealthWidget.h"
 #include <../../../../../../../Source/Runtime/UMG/Public/Components/WidgetComponent.h>
+#include "GrenadeActor.h"
+
 
 
 ATPSPlayer::ATPSPlayer()
@@ -417,28 +419,53 @@ void ATPSPlayer::SetWeapon2(const FInputActionValue& value)
 
 void ATPSPlayer::SniperGunZoomInOut(const FInputActionValue& value)
 {
-	if (currentWeaponNumber != 1)
-	{
-		return;
-	}
-
 	bool inputValue = value.Get<bool>();
 
-	if (inputValue)
+	// 노멀 건일 때
+	if (currentWeaponNumber == 0)
 	{
-		springArmComp->TargetArmLength = -100;
-	}
-	else
-	{
-		springArmComp->TargetArmLength = 300;
-	}
+		FVector dir = GetActorForwardVector() + GetActorUpVector();
+		float throwPower = 2000;
 
-	// zoom in 효과 on/off 설정
-	bZoomIn = inputValue;
+		if (inputValue)
+		{
+			// 수류탄의 궤적을 그린다.
+			TArray<FVector> results = CalculateThrowPoints(dir, throwPower, 0.1f, 3.0f);
 
-	if (gm != nullptr && gm->mainWidget_inst != nullptr)
+			for (int32 i = 0; i < results.Num() - 1; i++)
+			{
+				DrawDebugLine(GetWorld(), results[i], results[i + 1], FColor::Black, true, 0, 0, 3);
+			}
+		}
+		else
+		{
+			// 수류탄을 생성 및 발사한다.
+			FActorSpawnParameters params;
+			params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			AGrenadeActor* bomb = GetWorld()->SpawnActor<AGrenadeActor>(grenade_bp, GetActorLocation() + GetActorForwardVector() * 100, FRotator::ZeroRotator, params);
+
+			bomb->Throw(dir, throwPower);
+		}
+	}
+	// 스나이퍼 건일 때
+	else if (currentWeaponNumber == 1)
 	{
-		gm->mainWidget_inst->SetSniperMode(!inputValue);
+		if (inputValue)
+		{
+			springArmComp->TargetArmLength = -100;
+		}
+		else
+		{
+			springArmComp->TargetArmLength = 300;
+		}
+
+		// zoom in 효과 on/off 설정
+		bZoomIn = inputValue;
+
+		if (gm != nullptr && gm->mainWidget_inst != nullptr)
+		{
+			gm->mainWidget_inst->SetSniperMode(!inputValue);
+		}
 	}
 }
 
@@ -512,5 +539,26 @@ void ATPSPlayer::ChangeGunType(int32 number)
 	{
 		gm->mainWidget_inst->SetWeaponTexture(number);
 	}
+}
+
+TArray<FVector> ATPSPlayer::CalculateThrowPoints(const FVector& dir, float power, float interval, float simulTime)
+{
+	TArray<FVector> simulPoints;
+
+	// 총 횟수 = 시뮬레이션 총 시간 / 시뮬레이션 간격
+	int32 segment = simulTime / interval;
+	FVector startLocation = GetActorLocation() + GetActorForwardVector() * 100;
+	FVector gravityValue = FVector(0, 0, GetWorld()->GetDefaultGravityZ());
+	float mass = 5;
+
+	for (int32 i = 0; i < segment; i++)
+	{
+		// p = p0 + vt - 0.5*g*t*t * mass * mass
+		float term = interval * i;
+		FVector predictLocation = startLocation + dir * power * term + 0.5f * gravityValue * term * term * mass * mass;
+		simulPoints.Add(predictLocation);
+	}
+
+	return simulPoints;
 }
 

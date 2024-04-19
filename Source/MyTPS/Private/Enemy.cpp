@@ -97,6 +97,9 @@ void AEnemy::Tick(float DeltaTime)
 	case EEnemyState::DAMAGED:
 		DamageProcess(DeltaTime);
 		break;
+	case EEnemyState::DAMAGED_BOMB:
+
+		break;
 	case EEnemyState::DIE:
 		//Die();
 		break;
@@ -496,6 +499,15 @@ void AEnemy::HitBomb(int32 dmg, const FVector& attackDir, float maxRadius, float
 	currentHP = FMath::Clamp(currentHP - dmg, 0, maxHP);
 	healthWidget->SetHealthBar((float)currentHP / (float)maxHP, FLinearColor(1.0f, 0.138f, 0.059f, 1.0f));
 
+	if (currentHP > 0)
+	{
+		enemyState = EEnemyState::DAMAGED_BOMB;
+	}
+	else
+	{
+		enemyState = EEnemyState::DIE;
+	}
+
 	// 2. 랙돌 적용을 해준다.
 	//GetMesh()->SetCollisionProfileName(FName("Ragdoll"));
 	//GetMesh()->SetSimulatePhysics(true);
@@ -507,8 +519,6 @@ void AEnemy::HitBomb(int32 dmg, const FVector& attackDir, float maxRadius, float
 	bombUpPower = upPower;
 
 	GetWorldTimerManager().SetTimerForNextTick(this, &AEnemy::BombImpact);
-		
-	
 }
 
 void AEnemy::BombImpact()

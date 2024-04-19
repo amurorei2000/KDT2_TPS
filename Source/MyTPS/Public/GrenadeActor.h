@@ -38,6 +38,8 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TEnumAsByte<ECollisionChannel> affectType;
 
+	void Throw(const FVector& throwDir, float throwPower);
+
 private:
 	UFUNCTION()
 	void BombAction(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);

@@ -88,6 +88,9 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	EPlayerState tpsPlayerState;
 
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	TSubclassOf<class AGrenadeActor> grenade_bp;
+
 	UPROPERTY()
 	class AWeaponActor* attachedWeapon;
 
@@ -173,5 +176,5 @@ private:
 	void CheckObstacles();
 	void SetCameraLag(float deltaTime, float traceSpeed);
 	void ChangeGunType(int32 number);
-
+	TArray<FVector> CalculateThrowPoints(const FVector& dir, float power, float interval, float simulTime);
 };

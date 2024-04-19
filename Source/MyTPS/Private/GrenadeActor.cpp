@@ -41,6 +41,17 @@ void AGrenadeActor::Tick(float DeltaTime)
 
 }
 
+void AGrenadeActor::Throw(const FVector& throwDir, float throwPower)
+{
+	// 피직스가 off 상태라면 on 상태로 전환한다.
+	if (!sphereComp->IsSimulatingPhysics())
+	{
+		sphereComp->SetSimulatePhysics(true);
+	}
+
+	sphereComp->AddImpulse(throwDir * throwPower);
+}
+
 // Block으로 부딪혔을 때 실행되는 함수
 void AGrenadeActor::BombAction(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {

@@ -16,6 +16,7 @@ enum class EEnemyState : uint8
 	ATTACKDELAY,	//UMETA(DisplayName = "Attack Delay State"),
 	RETURN,		//UMETA(DisplayName = "Return State"),
 	DAMAGED,		//UMETA(DisplayName = "Damaged State"),
+	DAMAGED_BOMB,
 	DIE			//UMETA(DisplayName = "Dead State"),
 };
 
