@@ -17,9 +17,11 @@
 #include "PlayerAnimInstance.h"
 #include "Enemy.h"
 #include "EnemyHealthWidget.h"
-#include <../../../../../../../Source/Runtime/UMG/Public/Components/WidgetComponent.h>
+#include "Components/WidgetComponent.h"
 #include "GrenadeActor.h"
-
+#include "BombDecalActor.h"
+#include "TPSFunctionLibrary.h"
+#include <../../../../../../../Source/Runtime/Engine/Classes/Kismet/GameplayStatics.h>
 
 
 ATPSPlayer::ATPSPlayer()
@@ -133,6 +135,15 @@ void ATPSPlayer::BeginPlay()
 	playerHealthWidget = Cast<UEnemyHealthWidget>(floatingWidgetComp->GetWidget());
 
 	tpsPlayerState = EPlayerState::PLAYING;
+
+	// 폭발 범위 표시 데칼 액터 생성하기
+	FActorSpawnParameters params;
+	params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	bombDecal_inst = GetWorld()->SpawnActor<ABombDecalActor>(bombDecal_bp, GetActorLocation(), FRotator::ZeroRotator, params);
+	if (bombDecal_inst != nullptr)
+	{
+		bombDecal_inst->SetShowDecal(false);
+	}
 }
 
 void ATPSPlayer::Tick(float DeltaTime)
@@ -151,6 +162,67 @@ void ATPSPlayer::Tick(float DeltaTime)
 	cameraComp->SetFieldOfView(result);
 
 	//UE_LOG(LogTemp, Warning, TEXT("Jump: %s"), GetCharacterMovement()->IsFalling() ? *FString("True") : *FString("False"));
+
+	if (bShowLine)
+	{
+		throwDir = GetActorForwardVector() + GetActorUpVector();
+		FVector modifiedDir = cameraComp->GetComponentTransform().TransformVector(throwDir);
+
+		// 수류탄의 궤적을 그린다.
+		 
+		// 1. UGameplayStatics 클래스의 함수를 이용한 방법
+		
+		//FPredictProjectilePathParams params;
+		//params.StartLocation = GetActorLocation() + GetActorForwardVector() * 100;
+		//params.LaunchVelocity = modifiedDir * throwPower;
+		//params.bTraceWithChannel = true;
+		//params.TraceChannel = ECC_Visibility;
+		//params.DrawDebugTime = 0;
+		//params.DrawDebugType = EDrawDebugTrace::Type::ForOneFrame;
+		//params.MaxSimTime = 3.0f;
+		//params.SimFrequency = 50;
+		//params.OverrideGravityZ = -980;
+
+		//FPredictProjectilePathResult pathResults;
+		//UGameplayStatics::PredictProjectilePath(GetWorld(), params, pathResults);
+
+		//for (int32 i = 0; i < pathResults.PathData.Num() - 1; i++)
+		//{
+		//	DrawDebugLine(GetWorld(), pathResults.PathData[i].Location, pathResults.PathData[i + 1].Location, FColor::Red, false, 0, 0, 3);
+		//}
+
+		// 2. 직접 계산하는 방식
+		TArray<FVector> results = UTPSFunctionLibrary::CalculateThrowPoints(this, modifiedDir, throwPower, 0.1f, 3.0f, GetWorld()->GetDefaultGravityZ());
+
+		FVector finalLoc;
+
+		for (int32 i = 0; i < results.Num() - 1; i++)
+		{
+			FHitResult hitInfo;
+
+			if (GetWorld()->LineTraceSingleByChannel(hitInfo, results[i], results[i + 1], ECC_Visibility))
+			{
+				DrawDebugLine(GetWorld(), results[i], hitInfo.ImpactPoint, FColor::Black, false, 0, 0, 3);
+				finalLoc = hitInfo.ImpactPoint;
+				break;
+			}
+			else
+			{
+				finalLoc = results[i + 1];
+				DrawDebugLine(GetWorld(), results[i], results[i + 1], FColor::Black, false, 0, 0, 3);
+			}
+		}
+
+		if (bombDecal_inst != nullptr)
+		{
+			bombDecal_inst->SetActorLocation(finalLoc);
+			bombDecal_inst->SetShowDecal(true);
+		}
+	}
+	else
+	{
+		bombDecal_inst->SetShowDecal(false);
+	}
 }
 
 void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -424,27 +496,17 @@ void ATPSPlayer::SniperGunZoomInOut(const FInputActionValue& value)
 	// 노멀 건일 때
 	if (currentWeaponNumber == 0)
 	{
-		FVector dir = GetActorForwardVector() + GetActorUpVector();
-		float throwPower = 2000;
+		bShowLine = inputValue;
 
-		if (inputValue)
-		{
-			// 수류탄의 궤적을 그린다.
-			TArray<FVector> results = CalculateThrowPoints(dir, throwPower, 0.1f, 3.0f);
-
-			for (int32 i = 0; i < results.Num() - 1; i++)
-			{
-				DrawDebugLine(GetWorld(), results[i], results[i + 1], FColor::Black, true, 0, 0, 3);
-			}
-		}
-		else
+		if(!inputValue)
 		{
 			// 수류탄을 생성 및 발사한다.
 			FActorSpawnParameters params;
 			params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 			AGrenadeActor* bomb = GetWorld()->SpawnActor<AGrenadeActor>(grenade_bp, GetActorLocation() + GetActorForwardVector() * 100, FRotator::ZeroRotator, params);
 
-			bomb->Throw(dir, throwPower);
+			FVector modifiedDir = cameraComp->GetComponentTransform().TransformVector(throwDir);
+			bomb->Throw(modifiedDir, throwPower);
 		}
 	}
 	// 스나이퍼 건일 때
@@ -541,24 +603,5 @@ void ATPSPlayer::ChangeGunType(int32 number)
 	}
 }
 
-TArray<FVector> ATPSPlayer::CalculateThrowPoints(const FVector& dir, float power, float interval, float simulTime)
-{
-	TArray<FVector> simulPoints;
 
-	// 총 횟수 = 시뮬레이션 총 시간 / 시뮬레이션 간격
-	int32 segment = simulTime / interval;
-	FVector startLocation = GetActorLocation() + GetActorForwardVector() * 100;
-	FVector gravityValue = FVector(0, 0, GetWorld()->GetDefaultGravityZ());
-	float mass = 5;
-
-	for (int32 i = 0; i < segment; i++)
-	{
-		// p = p0 + vt - 0.5*g*t*t * mass * mass
-		float term = interval * i;
-		FVector predictLocation = startLocation + dir * power * term + 0.5f * gravityValue * term * term * mass * mass;
-		simulPoints.Add(predictLocation);
-	}
-
-	return simulPoints;
-}
 

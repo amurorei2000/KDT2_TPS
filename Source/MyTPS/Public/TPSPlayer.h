@@ -91,6 +91,12 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TSubclassOf<class AGrenadeActor> grenade_bp;
 
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	FVector throwDir;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	float throwPower = 500;
+
 	UPROPERTY()
 	class AWeaponActor* attachedWeapon;
 
@@ -105,6 +111,9 @@ public:
 	TArray<class UAnimationAsset*> anims;*/
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	int32 maxHP = 50;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	TSubclassOf<class ABombDecalActor> bombDecal_bp;
 
 	void SetGunAnimType(bool sniper);
 	void SetCurrentWeaponNumber(bool bSniper);
@@ -124,6 +133,8 @@ private:
 	int32 currentWeaponNumber = 0;
 	int32 currentHP = 0;
 	class UEnemyHealthWidget* playerHealthWidget;
+	bool bShowLine = false;
+	class ABombDecalActor* bombDecal_inst;
 
 	UPROPERTY()
 	class APlayerController* pc;
@@ -176,5 +187,5 @@ private:
 	void CheckObstacles();
 	void SetCameraLag(float deltaTime, float traceSpeed);
 	void ChangeGunType(int32 number);
-	TArray<FVector> CalculateThrowPoints(const FVector& dir, float power, float interval, float simulTime);
+	
 };
