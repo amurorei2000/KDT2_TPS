@@ -2,20 +2,18 @@
 
 
 #include "Enemy.h"
-#include "EngineUtils.h"
 #include "TPSPlayer.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EnemyAnimInstance.h"
 #include "Components/WidgetComponent.h"
 #include "Camera/CameraComponent.h"
-#include "Kismet/KismetMathLibrary.h"
 #include "EnemyHealthWidget.h"
-#include "AIController.h"
-#include "NavigationSystem.h"
-#include "NavigationPath.h"
 #include "NavigationInvokerComponent.h"
 #include "GrenadeActor.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "FSMComponent.h"
+#include "EngineUtils.h"
 
 
 AEnemy::AEnemy()
@@ -32,7 +30,9 @@ AEnemy::AEnemy()
 	floatingWidgetComp->SetWidgetSpace(EWidgetSpace::World);
 	floatingWidgetComp->SetDrawSize(FVector2D(150, 100));
 
+	// 액터 컴포넌트들
 	navInvokerComp = CreateDefaultSubobject<UNavigationInvokerComponent>(TEXT("NavInvoker Component"));
+	fsmComp = CreateDefaultSubobject<UFSMComponent>(TEXT("FSM Component"));
 
 	// AI Controller의 자동 Possess 기능 실행을 월드에 배치되었을 때 또는 스폰 됐을 때 실행하는 것으로 설정한다.
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -41,23 +41,15 @@ AEnemy::AEnemy()
 void AEnemy::BeginPlay()
 {
 	Super::BeginPlay();
-	
-	// 기본 상태를 IDLE 상태로 초기화한다.
-	enemyState = EEnemyState::IDLE;
+
+	// 월드에 있는 플레이어를 찾는다.
+	for (TActorIterator<ATPSPlayer> findActor(GetWorld()); findActor; ++findActor)
+	{
+		player = *findActor;
+	}
 
 	// 플레이할 Idle 애니메이션 번호를 선택해서 EnemyAnimInstance의 idleNumber 변수에 전달한다.
 	anim = Cast<UEnemyAnimInstance>(GetMesh()->GetAnimInstance());
-
-
-	// 월드에 있는 플레이어를 찾는다.
-	/*for (TActorIterator<ATPSPlayer> player(GetWorld()); player; ++player)
-	{
-		target = *player;
-	}*/
-
-	// 시작 위치를 정한다.
-	originLocation = GetActorLocation();
-	originRotation = GetActorRotation();
 
 	// 체력 변수를 초기화한다.
 	currentHP = maxHP;
@@ -69,48 +61,14 @@ void AEnemy::BeginPlay()
 
 	// 위젯 컴포넌트에 할당되어 있는 위젯 인스턴스를 가져온다.
 	healthWidget = Cast<UEnemyHealthWidget>(floatingWidgetComp->GetWidget());
-
-	aiCon = GetController<AAIController>();
 }
 
 void AEnemy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	switch (enemyState)
-	{
-	case EEnemyState::IDLE:
-		Idle(DeltaTime);
-		break;
-	case EEnemyState::MOVE:
-		MoveToTarget(DeltaTime);
-		break;
-	case EEnemyState::ATTACK:
-		Attack();
-		break;
-	case EEnemyState::ATTACKDELAY:
-		AttackDelay(DeltaTime);
-		break;
-	case EEnemyState::RETURN:
-		ReturnHome(DeltaTime);
-		break;
-	case EEnemyState::DAMAGED:
-		DamageProcess(DeltaTime);
-		break;
-	case EEnemyState::DAMAGED_BOMB:
-
-		break;
-	case EEnemyState::DIE:
-		//Die();
-		break;
-	default:
-		break;
-	}
-
-	DrawDebugSphere(GetWorld(), originLocation, limitDistance, 30, FColor::Green, false, 0, 0, 3);
-
 	// 위젯 빌보드
-	floatingWidgetComp->SetWorldRotation(BillboardWidgetComponent(target));
+	floatingWidgetComp->SetWorldRotation(BillboardWidgetComponent(player));
 }
 
 void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -119,269 +77,9 @@ void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 }
 
-void AEnemy::Idle(float deltaSeconds)
-{
-	//UE_LOG(LogTemp, Warning, TEXT("Idle State"));
-
-	// 5초가 지나면 상태를 MOVE 상태로 변경한다.
-	//currentTime += deltaSeconds;
-
-	//if (currentTime > 3.0f)
-	//{
-	//	currentTime = 0;
-	//	enemyState = EEnemyState::MOVE;
-	//	UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *UEnum::GetValueAsString<EEnemyState>(enemyState));
-	//}
-
-	// 자신의 전방을 기준으로 좌우 30도 이내, 거리 7미터의 범위에 플레이어 캐릭터가 접근하면 플레이어 캐릭터를 타겟으로 설정하고, 이동 상태로 전환한다.
-
-	// <1. 타겟 감지>
-	// sightDistance를 반경으로 주변에 있는 ATPSPlayer 클래스를 검색한다. -> TArray<ATPSPlayer>
-	// OverlapMulti 방식을 이용한다.
-	TArray<FOverlapResult> hitInfos;
-	FCollisionObjectQueryParams objectParams;
-	objectParams.AddObjectTypesToQuery(ECC_Pawn);
-	FCollisionQueryParams queryParams;
-	queryParams.AddIgnoredActor(this);
-
-	bool bCheckResult = GetWorld()->OverlapMultiByObjectType(hitInfos, GetActorLocation(), FQuat::Identity, objectParams, FCollisionShape::MakeSphere(sightDistance), queryParams);
-
-	if (bCheckResult)
-	{
-		for (const FOverlapResult& hitInfo : hitInfos)
-		{
-			ATPSPlayer* player = Cast<ATPSPlayer>(hitInfo.GetActor());
-			if (player != nullptr && player->tpsPlayerState == EPlayerState::PLAYING)
-			{
-				target = player;
-				break;
-			}
-		}
-	}
-	else
-	{
-		target = nullptr;
-	}
-
-	// <2. 시야각 체크>
-	// 찾은 플레이어가 전방 좌우 30도 이내에 있는지 확인한다.
-	if (target != nullptr)
-	{
-		FVector forwardVec = GetActorForwardVector();
-		FVector directionVec = (target->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-
-		float cosTheta = FVector::DotProduct(forwardVec, directionVec);
-		float theta_radian = FMath::Acos(cosTheta);
-		float theta_degree = FMath::RadiansToDegrees(theta_radian);
-
-#pragma region Debuging
-		//if (cosTheta >= 0)
-		//{
-		//	UE_LOG(LogTemp, Warning, TEXT("Target is located forward me"));
-		//}
-		//else
-		//{
-		//	UE_LOG(LogTemp, Warning, TEXT("Target is located back me"));
-		//}
-
-		//UE_LOG(LogTemp, Warning, TEXT("Degree: %.2f"), theta_degree);
-#pragma endregion
-
-		// 시야 범위 내에 있다면 이동 상태로 전환한다.
-		if (cosTheta > 0 && theta_degree < sightAngle)
-		{
-			enemyState = EEnemyState::MOVE;
-			UE_LOG(LogTemp, Warning, TEXT("I see target!"));
-
-			// <네비게이션 이동 방식>
-			// 만일, aiCon 변수의 값이 있다면...
-			if (aiCon != nullptr)
-			{
-				// target 방향으로 네비게이션 경로대로 이동한다.
-				EPathFollowingRequestResult::Type req = aiCon->MoveToActor(target);
-				FString requestString = UEnum::GetValueAsString<EPathFollowingRequestResult::Type>(req);
-				UE_LOG(LogTemp, Warning, TEXT("Nav Request: %s"), *requestString);
-
-				//aiCon->MoveToLocation(target->GetActorLocation(), 10);
-			}
-		}
-	}
-}
-
-void AEnemy::MoveToTarget(float deltaSeconds)
-{
-	// 기준 위치로부터 추격 한계 거리 이상 떨어져 있다면...
-	if (FVector::Distance(originLocation, GetActorLocation()) > limitDistance)
-	{
-		//aiCon->MoveToLocation(originLocation, 5, false);
-		enemyState = EEnemyState::RETURN;
-		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *StaticEnum<EEnemyState>()->GetValueAsString(enemyState));
-		return;
-	}
-
-	//UE_LOG(LogTemp, Warning, TEXT("MoveToTarget State"));
-	// 타겟이 있다면 타겟을 쫓아간다.
-	// 필요 요소: 방향, 추격 속력, 공격 가능 거리(최대 접근 거리)
-	//FVector targetDir = target->GetActorLocation() - GetActorLocation();
-	//targetDir.Z = 0;
-
-	//if (targetDir.Length() > attackDistance)
-	if(FVector::Distance(target->GetActorLocation(), GetActorLocation()) > attackDistance)
-	{
-		// 1. 기본 이동 방식
-		//GetCharacterMovement()->MaxWalkSpeed = traceSpeed;
-		//AddMovementInput(targetDir.GetSafeNormal());
-		//
-		//// 이동 방향으로 회전한다.
-		//FRotator currentRot = GetActorRotation();
-		//FRotator targetRot = targetDir.ToOrientationRotator();
-
-		//FRotator calcRot = FMath::Lerp(currentRot, targetRot, deltaSeconds * rotSpeed);
-		//SetActorRotation(calcRot);
-		
-		// 타겟까지의 이동 경로를 시각화한다.
-		UWorld* currentWorld = GetWorld();
-		UNavigationSystemV1* navSystem = UNavigationSystemV1::GetCurrent(currentWorld);
-		if (navSystem != nullptr)
-		{
-			//UNavigationPath* calcPath = navSystem->FindPathToLocationSynchronously(currentWorld, GetActorLocation(), target->GetActorLocation());
-
-			UNavigationPath* calcPath = navSystem->FindPathToActorSynchronously(currentWorld, GetActorLocation(), target);
-			TArray<FVector> paths = calcPath->PathPoints;
-
-			if (paths.Num() > 1)
-			{
-				for (int32 i = 0; i < paths.Num() - 1; i++)
-				{
-					DrawDebugLine(currentWorld, paths[i] + FVector(0, 0, 80), paths[i + 1] + FVector(0, 0, 80), FColor::Red, false, 0, 0, 2);
-				}
-			}
-		}
-		if (aiCon != nullptr)
-		{
-			aiCon->MoveToLocation(target->GetActorLocation(), 5, true);
-		}
-	}
-	else
-	{
-		aiCon->StopMovement();
-		enemyState = EEnemyState::ATTACK;
-		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *StaticEnum<EEnemyState>()->GetValueAsString(enemyState));
-	}
-}
-
-void AEnemy::Attack()
-{
-	// 타겟이 이미 사망 상태일 경우 즉시 Return 상태로 전환한다.
-	if (Cast<ATPSPlayer>(target)->tpsPlayerState == EPlayerState::DEATH)
-	{
-		target = nullptr;
-		enemyState = EEnemyState::RETURN;
-		return;
-	}
-
-	if (FVector::Distance(GetActorLocation(), target->GetActorLocation()) < attackDistance + 15.0f)
-	{
-		
-		enemyState = EEnemyState::ATTACKDELAY;
-	}
-	else
-	{
-		aiCon->MoveToActor(target);
-		enemyState = EEnemyState::MOVE;
-		UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *StaticEnum<EEnemyState>()->GetValueAsString(enemyState));
-	}
-}
-
-void AEnemy::AttackDelay(float deltaSeconds)
-{
-	// 타겟이 이미 사망 상태일 경우 즉시 Return 상태로 전환한다.
-	if (Cast<ATPSPlayer>(target)->tpsPlayerState == EPlayerState::DEATH)
-	{
-		target = nullptr;
-		enemyState = EEnemyState::RETURN;
-		return;
-	}
-
-	// 공격 대기 시간이 경과되면 다시 ATTACK 상태로 되돌린다.
-	currentTime += deltaSeconds;
-
-	if (currentTime > attackDelayTime)
-	{
-		currentTime = 0;
-		enemyState = EEnemyState::ATTACK;
-	}
-
-	if (FVector::Distance(GetActorLocation(), target->GetActorLocation()) > attackDistance + 15.0f)
-	{
-		if (currentTime > attackDelayTime * 0.65f)
-		{
-			aiCon->MoveToActor(target, 10);
-			enemyState = EEnemyState::MOVE;
-		}
-	}
-}
-
-void AEnemy::ReturnHome(float deltaSeconds)
-{
-	// 기준 위치로 돌아간다.
-	// 필요 요소 : 기준 위치, 한계 거리, 복귀 속력
-	
-	FVector dir = originLocation - GetActorLocation();
-	
-	// 만일, 10센티미터 이내로 접근했다면...
-	if (dir.Length() < 20)
-	{
-		aiCon->StopMovement();
-
-		// 강제로 시작 위치로 이동시킨다.
-		SetActorLocation(originLocation);
-		SetActorRotation(originRotation);
-
-		// 실행할 Idle 애니메이션을 결정한다.
-		if (anim != nullptr)
-		{
-			anim->idleNumber = SelectIdleAnimation();
-		}
-
-		enemyState = EEnemyState::IDLE;
-	}
-	else
-	{
-		// 시작 위치 쪽으로 이동한다.
-		//GetCharacterMovement()->MaxWalkSpeed = returnSpeed;
-		//AddMovementInput(dir.GetSafeNormal());
-
-		//FRotator lookRotation = FMath::Lerp(GetActorRotation(), dir.ToOrientationRotator(), deltaSeconds * rotSpeed);
-		//SetActorRotation(lookRotation);
-
-		UWorld* currentWorld = GetWorld();
-		UNavigationSystemV1* navSystem = UNavigationSystemV1::GetCurrent(currentWorld);
-		if (navSystem != nullptr)
-		{
-			//UNavigationPath* calcPath = navSystem->FindPathToLocationSynchronously(currentWorld, GetActorLocation(), target->GetActorLocation());
-
-			UNavigationPath* calcPath = navSystem->FindPathToLocationSynchronously(currentWorld, GetActorLocation(), originLocation);
-			TArray<FVector> paths = calcPath->PathPoints;
-
-			if (paths.Num() > 1)
-			{
-				for (int32 i = 0; i < paths.Num() - 1; i++)
-				{
-					DrawDebugLine(currentWorld, paths[i] + FVector(0, 0, 80), paths[i + 1] + FVector(0, 0, 80), FColor::Red, false, 0, 0, 2);
-				}
-			}
-		}
-
-		// 돌아갈 때 다른 이동 중인 Enemy와 블럭 효과가 발생되는 문제
-		aiCon->MoveToLocation(originLocation, 5, false, true, true);
-	}
-
-}
-
 void AEnemy::OnDamaged(int32 dmg, AActor* attacker)
 {
-	if (enemyState == EEnemyState::DAMAGED)
+	if (fsmComp->enemyState == EEnemyState::DAMAGED)
 	{
 		return;
 	}
@@ -397,12 +95,14 @@ void AEnemy::OnDamaged(int32 dmg, AActor* attacker)
 	if (currentHP > 0)
 	{
 		// 피격 상태로 전환한다.
-		enemyState = EEnemyState::DAMAGED;
+		fsmComp->enemyState = EEnemyState::DAMAGED;
+		fsmComp->SetNewTarget(attacker);
 		hitLocation = GetActorLocation();
 		hitDirection = GetActorLocation() - attacker->GetActorLocation();
 		hitDirection.Z = 0;
 		hitDirection.Normalize();
-		
+		fsmComp->targetLoc = hitLocation + hitDirection * 50.0f;
+
 		// 머티리얼 색상에 붉은 색을 입힌다.
 		dynamicMat->SetVectorParameterValue(FName("hitColor"), FVector4(1, 0, 0, 1));
 	}
@@ -410,41 +110,10 @@ void AEnemy::OnDamaged(int32 dmg, AActor* attacker)
 	else
 	{
 		// 죽음 상태로 전환한다.
-		enemyState = EEnemyState::DIE;
+		fsmComp->enemyState = EEnemyState::DIE;
 		Die();
 	}
 }
-
-
-void AEnemy::DamageProcess(float deltaSeconds)
-{
-	currentTime += deltaSeconds;
-	if (currentTime > 1.0f)
-	{
-		aiCon->MoveToActor(target);
-		dynamicMat->SetVectorParameterValue(FName("hitColor"), FVector4(1, 1, 1, 1));
-		enemyState = EEnemyState::MOVE;
-		return;
-	}
-
-	// 피격 효과를 준다(넉백 효과 부여).
-	//FVector backVec = GetActorForwardVector() * -1.0f;
-	FVector targetLoc = hitLocation + hitDirection * 50.0f;
-	FVector knockBackLocation = FMath::Lerp(GetActorLocation(), targetLoc, deltaSeconds * 7.0f);
-
-	if (FVector::Distance(GetActorLocation(), targetLoc) > 10)
-	{
-		SetActorLocation(knockBackLocation, true);
-	}
-	else
-	{
-		// 머티리얼 색상에 흰색을 입힌다.
-		aiCon->MoveToActor(target);
-		dynamicMat->SetVectorParameterValue(FName("hitColor"), FVector4(1, 1, 1, 1));
-		enemyState = EEnemyState::MOVE;
-	}
-}
-
 
 void AEnemy::Die()
 {
@@ -473,10 +142,10 @@ void AEnemy::Die()
 // 카메라 컴포넌트를 가지고 있는 액터를 위젯 컴포넌트가 바라보도록 회전 값을 계산해주는 함수
 FRotator AEnemy::BillboardWidgetComponent(class AActor* camActor)
 {
-	ATPSPlayer* player = Cast<ATPSPlayer>(target);
-	if (player != nullptr)
+	ATPSPlayer* camTarget = Cast<ATPSPlayer>(camActor);
+	if (camTarget != nullptr)
 	{
-		FVector lookDir = (player->cameraComp->GetComponentLocation() - floatingWidgetComp->GetComponentLocation()).GetSafeNormal();
+		FVector lookDir = (camTarget->cameraComp->GetComponentLocation() - floatingWidgetComp->GetComponentLocation()).GetSafeNormal();
 		FRotator lookRot = UKismetMathLibrary::MakeRotFromX(lookDir);
 		//FRotator lookRot = lookDir.ToOrientationRotator();
 
@@ -488,11 +157,6 @@ FRotator AEnemy::BillboardWidgetComponent(class AActor* camActor)
 	}
 }
 
-int32 AEnemy::SelectIdleAnimation()
-{
-	return FMath::RandRange(1, 4);
-}
-
 void AEnemy::HitBomb(int32 dmg, const FVector& attackDir, float maxRadius, float upPower)
 {
 	// 1. 데미지를 적용시킨다.
@@ -501,11 +165,11 @@ void AEnemy::HitBomb(int32 dmg, const FVector& attackDir, float maxRadius, float
 
 	if (currentHP > 0)
 	{
-		enemyState = EEnemyState::DAMAGED_BOMB;
+		fsmComp->enemyState = EEnemyState::DAMAGED_BOMB;
 	}
 	else
 	{
-		enemyState = EEnemyState::DIE;
+		fsmComp->enemyState = EEnemyState::DIE;
 	}
 
 	// 2. 랙돌 적용을 해준다.

@@ -7,26 +7,22 @@
 #include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "KismetTraceUtils.h"
 #include "Components/StaticMeshComponent.h"
-#include "BulletFXActor.h"
-#include "EngineUtils.h"
 #include "TPSMainGameModeBase.h"
 #include "MainWidget.h"
-#include "WeaponActor.h"
 #include "PlayerAnimInstance.h"
 #include "Enemy.h"
 #include "EnemyHealthWidget.h"
 #include "Components/WidgetComponent.h"
-#include "GrenadeActor.h"
-#include "BombDecalActor.h"
-#include "TPSFunctionLibrary.h"
-#include <../../../../../../../Source/Runtime/Engine/Classes/Kismet/GameplayStatics.h>
+#include "Kismet/GameplayStatics.h"
+#include "MoveComponent.h"
+#include "WeaponComponent.h"
+#include "FSMComponent.h"
 
 
 ATPSPlayer::ATPSPlayer()
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 
 	// 스켈레탈 메시 에셋 할당하기
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> playerMesh(TEXT("/Script/Engine.SkeletalMesh'/Game/AnimStarterPack/UE4_Mannequin/Mesh/SK_Mannequin.SK_Mannequin'"));
@@ -104,6 +100,10 @@ ATPSPlayer::ATPSPlayer()
 
 	// 0번 플레이어(로컬 플레이어)로 등록한다.
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
+
+	// 사용자 액터 컴포넌트들
+	moveComp = CreateDefaultSubobject<UMoveComponent>(TEXT("Move Component"));
+	weaponComp = CreateDefaultSubobject<UWeaponComponent>(TEXT("Weapon Component"));
 }
 
 void ATPSPlayer::BeginPlay()
@@ -122,12 +122,6 @@ void ATPSPlayer::BeginPlay()
 		}
 	}
 
-	// 월드에 있는 총알 피격 효과 액터를 찾아서 변수에 참조시킨다.
-	for (TActorIterator<ABulletFXActor> iter(GetWorld()); iter; ++iter)
-	{
-		bulletFX = *iter;
-	}
-
 	gm = Cast<ATPSMainGameModeBase>(GetWorld()->GetAuthGameMode());
 	playerAnim = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance());
 
@@ -135,15 +129,7 @@ void ATPSPlayer::BeginPlay()
 	playerHealthWidget = Cast<UEnemyHealthWidget>(floatingWidgetComp->GetWidget());
 
 	tpsPlayerState = EPlayerState::PLAYING;
-
-	// 폭발 범위 표시 데칼 액터 생성하기
-	FActorSpawnParameters params;
-	params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	bombDecal_inst = GetWorld()->SpawnActor<ABombDecalActor>(bombDecal_bp, GetActorLocation(), FRotator::ZeroRotator, params);
-	if (bombDecal_inst != nullptr)
-	{
-		bombDecal_inst->SetShowDecal(false);
-	}
+	
 }
 
 void ATPSPlayer::Tick(float DeltaTime)
@@ -152,77 +138,6 @@ void ATPSPlayer::Tick(float DeltaTime)
 
 	// 카메라와 캐릭터 사이의 방해물을 검사하는 함수
 	//CheckObstacles();
-
-	// 카메라 줌 인 아웃 처리
-	float direction = bZoomIn ? 1.0f : -1.0f;
-	alpha += DeltaTime * direction * 5.0f;
-	alpha = FMath::Clamp(alpha, 0.0f, 1.0f);
-
-	float result = FMath::Lerp(90, 40, alpha);
-	cameraComp->SetFieldOfView(result);
-
-	//UE_LOG(LogTemp, Warning, TEXT("Jump: %s"), GetCharacterMovement()->IsFalling() ? *FString("True") : *FString("False"));
-
-	if (bShowLine)
-	{
-		throwDir = GetActorForwardVector() + GetActorUpVector();
-		FVector modifiedDir = cameraComp->GetComponentTransform().TransformVector(throwDir);
-
-		// 수류탄의 궤적을 그린다.
-		 
-		// 1. UGameplayStatics 클래스의 함수를 이용한 방법
-		
-		//FPredictProjectilePathParams params;
-		//params.StartLocation = GetActorLocation() + GetActorForwardVector() * 100;
-		//params.LaunchVelocity = modifiedDir * throwPower;
-		//params.bTraceWithChannel = true;
-		//params.TraceChannel = ECC_Visibility;
-		//params.DrawDebugTime = 0;
-		//params.DrawDebugType = EDrawDebugTrace::Type::ForOneFrame;
-		//params.MaxSimTime = 3.0f;
-		//params.SimFrequency = 50;
-		//params.OverrideGravityZ = -980;
-
-		//FPredictProjectilePathResult pathResults;
-		//UGameplayStatics::PredictProjectilePath(GetWorld(), params, pathResults);
-
-		//for (int32 i = 0; i < pathResults.PathData.Num() - 1; i++)
-		//{
-		//	DrawDebugLine(GetWorld(), pathResults.PathData[i].Location, pathResults.PathData[i + 1].Location, FColor::Red, false, 0, 0, 3);
-		//}
-
-		// 2. 직접 계산하는 방식
-		TArray<FVector> results = UTPSFunctionLibrary::CalculateThrowPoints(this, modifiedDir, throwPower, 0.1f, 3.0f, GetWorld()->GetDefaultGravityZ());
-
-		FVector finalLoc;
-
-		for (int32 i = 0; i < results.Num() - 1; i++)
-		{
-			FHitResult hitInfo;
-
-			if (GetWorld()->LineTraceSingleByChannel(hitInfo, results[i], results[i + 1], ECC_Visibility))
-			{
-				DrawDebugLine(GetWorld(), results[i], hitInfo.ImpactPoint, FColor::Black, false, 0, 0, 3);
-				finalLoc = hitInfo.ImpactPoint;
-				break;
-			}
-			else
-			{
-				finalLoc = results[i + 1];
-				DrawDebugLine(GetWorld(), results[i], results[i + 1], FColor::Black, false, 0, 0, 3);
-			}
-		}
-
-		if (bombDecal_inst != nullptr)
-		{
-			bombDecal_inst->SetActorLocation(finalLoc);
-			bombDecal_inst->SetShowDecal(true);
-		}
-	}
-	else
-	{
-		bombDecal_inst->SetShowDecal(false);
-	}
 }
 
 void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -233,20 +148,8 @@ void ATPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 
 	if (enhancedInputComponent != nullptr)
 	{
-		//enhancedInputComponent->BindAction(ia_move, ETriggerEvent::Started, this, &ATPSPlayer::PlayerMoveStart);
-		enhancedInputComponent->BindAction(ia_move, ETriggerEvent::Triggered, this, &ATPSPlayer::PlayerMove);
-		enhancedInputComponent->BindAction(ia_move, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerMove);
-		enhancedInputComponent->BindAction(ia_rotate, ETriggerEvent::Triggered, this, &ATPSPlayer::PlayerRotate);
-		//enhancedInputComponent->BindAction(ia_rotate, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerRotate);
-		enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Started, this, &ATPSPlayer::PlayerJump);
-		enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Completed, this, &ATPSPlayer::PlayerJumpEnd);
-		//enhancedInputComponent->BindAction(ia_jump, ETriggerEvent::Started, this, &ACharacter::Jump);
-		enhancedInputComponent->BindAction(ia_fire, ETriggerEvent::Started, this, &ATPSPlayer::PlayerFire);
-		enhancedInputComponent->BindAction(ia_alpha1, ETriggerEvent::Started, this, &ATPSPlayer::SetWeapon1);
-		enhancedInputComponent->BindAction(ia_alpha2, ETriggerEvent::Started, this, &ATPSPlayer::SetWeapon2);
-		enhancedInputComponent->BindAction(ia_aimFocusing, ETriggerEvent::Started, this, &ATPSPlayer::SniperGunZoomInOut);
-		enhancedInputComponent->BindAction(ia_aimFocusing, ETriggerEvent::Completed, this, &ATPSPlayer::SniperGunZoomInOut);
-		enhancedInputComponent->BindAction(ia_releaseWeapon, ETriggerEvent::Started, this, &ATPSPlayer::ReleaseAction);
+		moveComp->SetupPlayerInputComponent(enhancedInputComponent);
+		weaponComp->SetupPlayerInputComponent(enhancedInputComponent);
 	}
 }
 
@@ -256,11 +159,6 @@ void ATPSPlayer::SetGunAnimType(bool sniper)
 	{
 		playerAnim->bUseSniper = sniper;
 	}
-}
-
-void ATPSPlayer::SetCurrentWeaponNumber(bool bSniper)
-{
-	currentWeaponNumber = (int32)bSniper;
 }
 
 void ATPSPlayer::OnDamaged(int32 dmg, AEnemy* attacker)
@@ -279,8 +177,8 @@ void ATPSPlayer::OnDamaged(int32 dmg, AEnemy* attacker)
 		playerAnim->bDead = true;
 		GetCharacterMovement()->DisableMovement();
 
-		attacker->RemoveTarget();
-		attacker->enemyState = EEnemyState::RETURN;
+		attacker->fsmComp->RemoveTarget();
+		attacker->fsmComp->enemyState = EEnemyState::RETURN;
 
 		// 페이드 인 효과를 준다.
 		if (pc != nullptr)
@@ -320,235 +218,8 @@ void ATPSPlayer::OnDamaged(int32 dmg, AEnemy* attacker)
 	PlayAnimMontage(hitMotage, 1.0f, FName(sectionName));
 }
 
-void ATPSPlayer::PlayerMove(const FInputActionValue& value)
-{
-	FVector2D inputValue = value.Get<FVector2D>();
-	moveDirection = FVector(inputValue.Y, inputValue.X, 0);
 
-	// p = p0 + vt
-	// v = v0 + at
-	//SetActorLocation(GetActorLocation() + moveDirection * 600 * DeltaTime);
 
-	// UCharacterMovementComponent의 함수를 이용해서 이동하는 방식
-	// 입력 방향 벡터를 자신의 회전 값 기준으로 변환한다.(world -> local)
-	//FVector localMoveDirection = GetTransform().TransformVector(moveDirection);
-	FVector localMoveDirection = cameraComp->GetComponentTransform().TransformVector(moveDirection);
-
-	//FVector forward = FRotationMatrix(GetActorRotation()).GetUnitAxis(EAxis::X);
-	//FVector right = FRotationMatrix(GetActorRotation()).GetUnitAxis(EAxis::Y);
-	//FVector localMoveDirection = GetActorForwardVector() * moveDirection.X + GetActorRightVector() * moveDirection.Y;
-	AddMovementInput(localMoveDirection.GetSafeNormal());
-
-	// 애니메이션 인스턴스에 있는 moveDirection 변수에 현재 입력 값을 전달한다.
-	if (playerAnim != nullptr)
-	{
-		playerAnim->moveDirection = moveDirection;
-	}
-}
-
-//void ATPSPlayer::PlayerMoveStart(const FInputActionValue& value)
-//{
-//	// 달리기 애니메이션으로 교체한다.
-//	GetMesh()->PlayAnimation(anims[1], true);
-//}
-
-//void ATPSPlayer::PlayerMoveEnd(const FInputActionValue& value)
-//{
-//	// 대기 애니메이션으로 교체한다.
-//	GetMesh()->PlayAnimation(anims[0], true);
-//}
-
-void ATPSPlayer::PlayerRotate(const FInputActionValue& value)
-{
-	FVector2D inputValue = value.Get<FVector2D>();
-	deltaRotation = FRotator(inputValue.Y, inputValue.X, 0);
-	//UE_LOG(LogTemp, Warning, TEXT("(%.2f, %.2f)"), inputValue.X, inputValue.Y);
-
-	//SetActorRotation(GetActorRotation() + deltaRotation);
-	AddControllerYawInput(deltaRotation.Yaw * mouseSensibility);
-	AddControllerPitchInput(deltaRotation.Pitch * mouseSensibility);
-}
-
-void ATPSPlayer::PlayerJump(const FInputActionValue& value)
-{
-	Jump();
-}
-
-void ATPSPlayer::PlayerJumpEnd(const FInputActionValue& value)
-{
-	StopJumping();
-}
-
-void ATPSPlayer::PlayerFire(const FInputActionValue& value)
-{
-	// 총을 들고 있지 않거나 또는 총을 발사하는 애니메이션 중일 때에는 이 함수를 종료한다.
-	if (attachedWeapon == nullptr || GetWorldTimerManager().IsTimerActive(endFireTimer))
-	{
-		return;
-	}
-
-	// 라인 트레이스 방식
-	FHitResult hitInfo;
-	FVector startLoc = cameraComp->GetComponentLocation();
-	FVector endLoc = startLoc + cameraComp->GetForwardVector() * attachedWeapon->fireDistance;
-	// 충돌 체크에 포함할 오브젝트 타입
-	FCollisionObjectQueryParams objQueryParams;
-	objQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-	objQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-	// 충돌 체크에서 제외할 액터 또는 컴포넌트
-	FCollisionQueryParams queryParams;
-	queryParams.AddIgnoredActor(this);
-
-	// 싱글 방식
-	//bool bResult = GetWorld()->LineTraceSingleByObjectType(hitInfo, startLoc, endLoc, objQueryParams, queryParams);
-	bool bResult = GetWorld()->LineTraceSingleByChannel(hitInfo, startLoc, endLoc, ECC_Visibility, queryParams);
-
-	// 멀티 방식
-	//TArray<FHitResult> hitInfos;
-
-	//bool bResult = GetWorld()->LineTraceMultiByChannel(hitInfos, startLoc, endLoc, ECC_Visibility, queryParams);
-	//bool bResult = GetWorld()->LineTraceMultiByObjectType(hitInfos, startLoc, endLoc, objQueryParams, queryParams);
-
-	if (bResult)
-	{
-		//UE_LOG(LogTemp, Warning, TEXT("Hit Actor Name: %s"), *hitInfo.GetActor()->GetActorNameOrLabel());
-		//DrawDebugLine(GetWorld(), startLoc, hitInfo.ImpactPoint, FColor(0, 255, 0), false, 2.0f, 0, 1);
-		//DrawDebugLine(GetWorld(), hitInfo.ImpactPoint, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1);
-
-		// 감지된 지점에 폭발 효과 이펙트를 출력한다.
-		if (bulletFX != nullptr)
-		{
-			bulletFX->SetActorLocation(hitInfo.ImpactPoint);
-			bulletFX->PlayFX();
-		}
-
-		// 만일, 감지된 대상이 Enemy라면...
-		AEnemy* enemy = Cast<AEnemy>(hitInfo.GetActor());
-
-		if (enemy != nullptr)
-		{
-			// Enemy의 OnDamage() 함수를 실행시킨다.
-			enemy->OnDamaged(attachedWeapon->damage, this);
-		}
-	}
-	//else
-	//{
-		//DrawDebugLine(GetWorld(), startLoc, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1.0f);
-	//}
-
-	if (playerAnim != nullptr)
-	{
-		playerAnim->bFire = true;
-
-		GetWorldTimerManager().SetTimer(endFireTimer, this, &ATPSPlayer::EndFire, 0.5f, false);
-	}
-
-	if (fire_montages.Num() > 1)
-	{
-		if (attachedWeapon->bSniperGun)
-		{
-			PlayAnimMontage(fire_montages[1]);
-		}
-		else
-		{
-			PlayAnimMontage(fire_montages[0]);
-		}
-	}
-}
-
-void ATPSPlayer::PlayerFire2(const FInputActionValue& value)
-{
-	FHitResult hitInfo;
-	FVector startLoc = GetActorLocation();
-	FVector endLoc = startLoc + GetActorForwardVector() * 1000.0f;
-	FQuat startRot = FRotator(0, 0, 45).Quaternion();
-	FCollisionQueryParams queryParams;
-	queryParams.AddIgnoredActor(this);
-
-	// 정육면체를 45도 회전시킨 상태로 발사한다.
-	bool bResult = GetWorld()->SweepSingleByChannel(hitInfo, startLoc, endLoc, startRot, ECC_Visibility, FCollisionShape::MakeBox(FVector(10)), queryParams);
-
-	if (bResult)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Hit Actor name: %s"), *hitInfo.GetActor()->GetActorNameOrLabel());
-		FVector centerPos = (startLoc + endLoc) * 0.5f;
-	}
-
-	DrawDebugBoxTraceSingle(GetWorld(), startLoc, endLoc, FVector(10), FRotator(0, 0, 45), EDrawDebugTrace::ForDuration, true, hitInfo, FLinearColor::Green, FLinearColor::Red, 2.0f);
-}
-
-void ATPSPlayer::SetWeapon1(const FInputActionValue& value)
-{
-	currentWeaponNumber = 0;
-	ChangeGunType(currentWeaponNumber);
-}
-
-void ATPSPlayer::SetWeapon2(const FInputActionValue& value)
-{
-	currentWeaponNumber = 1;
-	ChangeGunType(currentWeaponNumber);
-}
-
-void ATPSPlayer::SniperGunZoomInOut(const FInputActionValue& value)
-{
-	bool inputValue = value.Get<bool>();
-
-	// 노멀 건일 때
-	if (currentWeaponNumber == 0)
-	{
-		bShowLine = inputValue;
-
-		if(!inputValue)
-		{
-			// 수류탄을 생성 및 발사한다.
-			FActorSpawnParameters params;
-			params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			AGrenadeActor* bomb = GetWorld()->SpawnActor<AGrenadeActor>(grenade_bp, GetActorLocation() + GetActorForwardVector() * 100, FRotator::ZeroRotator, params);
-
-			FVector modifiedDir = cameraComp->GetComponentTransform().TransformVector(throwDir);
-			bomb->Throw(modifiedDir, throwPower);
-		}
-	}
-	// 스나이퍼 건일 때
-	else if (currentWeaponNumber == 1)
-	{
-		if (inputValue)
-		{
-			springArmComp->TargetArmLength = -100;
-		}
-		else
-		{
-			springArmComp->TargetArmLength = 300;
-		}
-
-		// zoom in 효과 on/off 설정
-		bZoomIn = inputValue;
-
-		if (gm != nullptr && gm->mainWidget_inst != nullptr)
-		{
-			gm->mainWidget_inst->SetSniperMode(!inputValue);
-		}
-	}
-}
-
-void ATPSPlayer::ReleaseAction(const FInputActionValue& value)
-{
-	if (attachedWeapon == nullptr)
-	{
-		return;
-	}
-	attachedWeapon->Release();
-	attachedWeapon = nullptr;
-	currentWeaponNumber = 0;
-}
-
-void ATPSPlayer::EndFire()
-{
-	if (playerAnim != nullptr)
-	{
-		playerAnim->bFire = false;
-	}
-}
 
 void ATPSPlayer::CheckObstacles()
 {
@@ -590,18 +261,7 @@ void ATPSPlayer::SetCameraLag(float deltaTime, float traceSpeed)
 	previousCamLoc = cameraComp->GetComponentLocation();
 }
 
-void ATPSPlayer::ChangeGunType(int32 number)
-{
-	// 메시 변경
-	gunMeshComp->SetStaticMesh(gunTypes[number]);
-	gunMeshComp->SetRelativeLocation(gunOffset[number]);
 
-	// UI 텍스쳐 변경
-	if (gm != nullptr)
-	{
-		gm->mainWidget_inst->SetWeaponTexture(number);
-	}
-}
 
 
 

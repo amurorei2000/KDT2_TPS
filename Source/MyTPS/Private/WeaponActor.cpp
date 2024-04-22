@@ -5,6 +5,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "TPSPlayer.h"
+#include "WeaponComponent.h"
 
 
 AWeaponActor::AWeaponActor()
@@ -13,7 +14,6 @@ AWeaponActor::AWeaponActor()
 
 	boxComp = CreateDefaultSubobject<UBoxComponent>(TEXT("Box Component"));
 	SetRootComponent(boxComp);
-	//boxComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	boxComp->SetCollisionProfileName(FName("WeaponPreset"));
 	boxComp->SetSimulatePhysics(true);
 	boxComp->SetEnableGravity(true);
@@ -75,7 +75,7 @@ void AWeaponActor::OnOverlapPlayer(UPrimitiveComponent* OverlappedComponent, AAc
 			// 플레이어 애니메이션 인스턴스의 useSniper 변수 값을 변경한다.
 			player->SetGunAnimType(bSniperGun);
 
-			player->SetCurrentWeaponNumber(bSniperGun);
+			player->weaponComp->SetCurrentWeaponNumber(bSniperGun);
 		}
 	}
 }

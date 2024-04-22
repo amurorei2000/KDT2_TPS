@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
-#include "Enemy.h"
+#include "FSMComponent.h"
 #include "EnemyAnimInstance.generated.h"
 
 /**

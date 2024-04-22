@@ -3,7 +3,7 @@
 
 #include "EnemyAnimInstance.h"
 #include "TPSPlayer.h"
-
+#include "Enemy.h"
 
 
 void UEnemyAnimInstance::NativeInitializeAnimation()
@@ -13,7 +13,7 @@ void UEnemyAnimInstance::NativeInitializeAnimation()
 	enemy = Cast<AEnemy>(GetOwningActor());
 	if (enemy != nullptr)
 	{
-		idleNumber = enemy->SelectIdleAnimation();
+		idleNumber = enemy->fsmComp->SelectIdleAnimation();
 		UE_LOG(LogTemp, Warning, TEXT("AnimBP idle number:  %d"), idleNumber);
 	}
 }
@@ -24,13 +24,13 @@ void UEnemyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	if (enemy != nullptr)
 	{
-		currentState = enemy->enemyState;
+		currentState = enemy->fsmComp->enemyState;
 	}
 }
 
 void UEnemyAnimInstance::AnimNotify_Kick()
 {
-	ATPSPlayer* player = Cast<ATPSPlayer>(enemy->GetCurrentTarget());
+	ATPSPlayer* player = Cast<ATPSPlayer>(enemy->fsmComp->GetCurrentTarget());
 
 	if (player != nullptr)
 	{
@@ -41,8 +41,8 @@ void UEnemyAnimInstance::AnimNotify_Kick()
 		}
 		else if (player->tpsPlayerState == EPlayerState::DEATH)
 		{
-			enemy->RemoveTarget();
-			enemy->enemyState = EEnemyState::RETURN;
+			enemy->fsmComp->RemoveTarget();
+			enemy->fsmComp->enemyState = EEnemyState::RETURN;
 		}
 	}
 }
