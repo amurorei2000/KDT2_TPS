@@ -63,6 +63,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "MySettings")
 	float sightAngle = 30.0f;
 
+	UPROPERTY(EditAnywhere, Category = "MySettings")
+	TArray<FVector> patrolPoints;
+
 	FVector targetLoc;
 
 	UFUNCTION()
@@ -85,9 +88,16 @@ private:
 	FVector originLocation;
 	FRotator originRotation;
 	class AAIController* aiCon;
-
+	int32 patrolPointNum = 0;
+	FVector randomPatrolPoint;
+	class UNavigationSystemV1* navSys;
+	UWorld* currentWorld;
+	float randomPatrolDelay = 3;
 
 	void Idle(float deltaSeconds);
+	void SearchPlayer();
+	void PatrolType1();
+	void PatrolType2();
 	void MoveToTarget(float deltaSeconds);
 	void Attack();
 	void AttackDelay(float deltaSeconds);

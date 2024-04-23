@@ -32,6 +32,12 @@ void UFSMComponent::BeginPlay()
 	// 시작 위치를 정한다.
 	originLocation = enemy->GetActorLocation();
 	originRotation = enemy->GetActorRotation();
+
+	// 현재 월드의 네비게이션 메시 데이터를 가져온다.
+	currentWorld = GetWorld();
+	navSys = UNavigationSystemV1::GetCurrent(currentWorld);
+
+	randomPatrolDelay = FMath::RandRange(1.5f, 4.5f);
 }
 
 
@@ -43,6 +49,10 @@ void UFSMComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorCo
 	{
 	case EEnemyState::IDLE:
 		Idle(DeltaTime);
+		break;
+	case EEnemyState::PATROL:
+		//PatrolType1();
+		PatrolType2();
 		break;
 	case EEnemyState::MOVE:
 		MoveToTarget(DeltaTime);
@@ -69,17 +79,47 @@ void UFSMComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorCo
 		break;
 	}
 
-	DrawDebugSphere(GetWorld(), originLocation, limitDistance, 30, FColor::Green, false, 0, 0, 3);
+	DrawDebugSphere(currentWorld, originLocation, limitDistance, 30, FColor::Green, false, 0, 0, 3);
 }
 
 void UFSMComponent::Idle(float deltaSeconds)
 {
-	// 자신의 전방을 기준으로 좌우 30도 이내, 거리 7미터의 범위에 플레이어 캐릭터가 접근하면 플레이어 캐릭터를 타겟으로 설정하고, 이동 상태로 전환한다.
+	if (target == nullptr)
+	{
+		SearchPlayer();
+	}
 
+	// 3초 뒤에 패트롤 상태로 전환
+	if (currentTime > randomPatrolDelay)
+	{
+		enemyState = EEnemyState::PATROL;
+		currentTime = 0;
+
+		// 반경 3미터 이내의 랜덤 위치를 뽑는다.
+		//FVector2D randVec = FMath::RandPointInCircle(400);
+		//randomPatrolPoint = FVector(randVec.X, randVec.Y, 88.0f);
+		if (navSys != nullptr)
+		{
+			FNavLocation navLocation;
+			if (navSys->GetRandomReachablePointInRadius(enemy->GetActorLocation(), 300, navLocation))
+			{
+				randomPatrolPoint = navLocation.Location;
+			}
+		}
+	}
+	else
+	{
+		currentTime += deltaSeconds;
+	}
+}
+
+void UFSMComponent::SearchPlayer()
+{
+	// 자신의 전방을 기준으로 좌우 30도 이내, 거리 7미터의 범위에 플레이어 캐릭터가 접근하면 플레이어 캐릭터를 타겟으로 설정하고, 이동 상태로 전환한다.
 	// <1. 타겟 감지>
 	// sightDistance를 반경으로 주변에 있는 ATPSPlayer 클래스를 검색한다. -> TArray<ATPSPlayer>
 	// OverlapMulti 방식을 이용한다.
-	TArray<AActor*> foundActors = UTPSFunctionLibrary::SearchAroundActor(enemy, sightDistance, ECC_Pawn, enemy->GetWorld());
+	TArray<AActor*> foundActors = UTPSFunctionLibrary::SearchAroundActor(enemy, sightDistance, ECC_Pawn, currentWorld);
 
 	if (foundActors.Num() > 0)
 	{
@@ -105,11 +145,12 @@ void UFSMComponent::Idle(float deltaSeconds)
 					{
 						// target 방향으로 네비게이션 경로대로 이동한다.
 						EPathFollowingRequestResult::Type req = aiCon->MoveToActor(target);
-						FString requestString = UEnum::GetValueAsString<EPathFollowingRequestResult::Type>(req);
-						UE_LOG(LogTemp, Warning, TEXT("Nav Request: %s"), *requestString);
+						//FString requestString = UEnum::GetValueAsString<EPathFollowingRequestResult::Type>(req);
+						//UE_LOG(LogTemp, Warning, TEXT("Nav Request: %s"), *requestString);
 					}
 
-					break;
+					currentTime = 0;
+					return;
 				}
 			}
 		}
@@ -117,6 +158,43 @@ void UFSMComponent::Idle(float deltaSeconds)
 	else
 	{
 		target = nullptr;
+	}
+}
+
+void UFSMComponent::PatrolType1()
+{
+	if (target == nullptr)
+	{
+		SearchPlayer();
+	}
+
+	// 패트롤 목적지로 이동한다.
+	aiCon->MoveToLocation(patrolPoints[patrolPointNum], 20);
+
+	// 거리가 1미터 이내라면 IDLE 상태로 전환한다.
+	if (FVector::Distance(enemy->GetActorLocation(), patrolPoints[patrolPointNum]) < 100)
+	{
+		patrolPointNum = (patrolPointNum + 1) % patrolPoints.Num();
+		enemyState = EEnemyState::IDLE;
+		randomPatrolDelay = FMath::RandRange(1.5f, 4.5f);
+	}
+}
+
+void UFSMComponent::PatrolType2()
+{
+	// 3미터 이내의 랜덤한 지점으로 이동한다.
+	EPathFollowingRequestResult::Type result = aiCon->MoveToLocation(randomPatrolPoint, 20);
+	//FString resultText = UEnum::GetValueAsString<EPathFollowingRequestResult::Type>(result);
+	//UE_LOG(LogTemp, Warning, TEXT("Result: %s"), *resultText);
+
+	FVector distPoint = randomPatrolPoint;
+	distPoint.Z = 88;
+	float dist = FVector::Distance(enemy->GetActorLocation(), distPoint);
+
+	if (dist < 100)
+	{
+		enemyState = EEnemyState::IDLE;
+		randomPatrolDelay = FMath::RandRange(1.5f, 4.5f);
 	}
 }
 
@@ -140,24 +218,11 @@ void UFSMComponent::MoveToTarget(float deltaSeconds)
 	//if (targetDir.Length() > attackDistance)
 	if (FVector::Distance(target->GetActorLocation(), enemy->GetActorLocation()) > attackDistance)
 	{
-		// 1. 기본 이동 방식
-		//GetCharacterMovement()->MaxWalkSpeed = traceSpeed;
-		//AddMovementInput(targetDir.GetSafeNormal());
-		//
-		//// 이동 방향으로 회전한다.
-		//FRotator currentRot = GetActorRotation();
-		//FRotator targetRot = targetDir.ToOrientationRotator();
-
-		//FRotator calcRot = FMath::Lerp(currentRot, targetRot, deltaSeconds * rotSpeed);
-		//SetActorRotation(calcRot);
-
 		// 타겟까지의 이동 경로를 시각화한다.
-		UWorld* currentWorld = GetWorld();
-		UNavigationSystemV1* navSystem = UNavigationSystemV1::GetCurrent(currentWorld);
-		if (navSystem != nullptr)
+		if (navSys != nullptr)
 		{
 			//UNavigationPath* calcPath = navSystem->FindPathToLocationSynchronously(currentWorld, GetActorLocation(), target->GetActorLocation());
-			UNavigationPath* calcPath = navSystem->FindPathToActorSynchronously(currentWorld, enemy->GetActorLocation(), target);
+			UNavigationPath* calcPath = navSys->FindPathToActorSynchronously(currentWorld, enemy->GetActorLocation(), target);
 			TArray<FVector> paths = calcPath->PathPoints;
 
 			if (paths.Num() > 1)
@@ -265,14 +330,12 @@ void UFSMComponent::ReturnHome(float deltaSeconds)
 
 		//FRotator lookRotation = FMath::Lerp(GetActorRotation(), dir.ToOrientationRotator(), deltaSeconds * rotSpeed);
 		//SetActorRotation(lookRotation);
-
-		UWorld* currentWorld = GetWorld();
-		UNavigationSystemV1* navSystem = UNavigationSystemV1::GetCurrent(currentWorld);
-		if (navSystem != nullptr)
+		
+		if (navSys != nullptr)
 		{
 			//UNavigationPath* calcPath = navSystem->FindPathToLocationSynchronously(currentWorld, GetActorLocation(), target->GetActorLocation());
 
-			UNavigationPath* calcPath = navSystem->FindPathToLocationSynchronously(currentWorld, enemy->GetActorLocation(), originLocation);
+			UNavigationPath* calcPath = navSys->FindPathToLocationSynchronously(currentWorld, enemy->GetActorLocation(), originLocation);
 			TArray<FVector> paths = calcPath->PathPoints;
 
 			if (paths.Num() > 1)
