@@ -18,4 +18,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	static TArray<FVector> CalculateThrowPoints(class AActor* baseActor, const FVector& dir, float power, float interval, float simulTime, float gravityZ);
 	
+	UFUNCTION(BlueprintCallable)
+	static float CheckSight(const AActor* myActor, const AActor* otherActor);
+
+	UFUNCTION(BlueprintCallable)
+	static TArray<AActor*> SearchAroundActor(const AActor* myActor, float sightDistance, ECollisionChannel searchObject, UWorld* worldContext);
 };

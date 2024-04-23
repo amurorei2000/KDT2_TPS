@@ -8,6 +8,7 @@
 #include "NavigationSystem.h"
 #include "NavigationPath.h"
 #include "EnemyAnimInstance.h"
+#include "TPSFunctionLibrary.h"
 
 
 UFSMComponent::UFSMComponent()
@@ -73,92 +74,49 @@ void UFSMComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorCo
 
 void UFSMComponent::Idle(float deltaSeconds)
 {
-	//UE_LOG(LogTemp, Warning, TEXT("Idle State"));
-
-	// 5초가 지나면 상태를 MOVE 상태로 변경한다.
-	//currentTime += deltaSeconds;
-
-	//if (currentTime > 3.0f)
-	//{
-	//	currentTime = 0;
-	//	enemyState = EEnemyState::MOVE;
-	//	UE_LOG(LogTemp, Warning, TEXT("State Transition: %s"), *UEnum::GetValueAsString<EEnemyState>(enemyState));
-	//}
-
 	// 자신의 전방을 기준으로 좌우 30도 이내, 거리 7미터의 범위에 플레이어 캐릭터가 접근하면 플레이어 캐릭터를 타겟으로 설정하고, 이동 상태로 전환한다.
 
 	// <1. 타겟 감지>
 	// sightDistance를 반경으로 주변에 있는 ATPSPlayer 클래스를 검색한다. -> TArray<ATPSPlayer>
 	// OverlapMulti 방식을 이용한다.
-	TArray<FOverlapResult> hitInfos;
-	FCollisionObjectQueryParams objectParams;
-	objectParams.AddObjectTypesToQuery(ECC_Pawn);
-	FCollisionQueryParams queryParams;
-	queryParams.AddIgnoredActor(enemy);
+	TArray<AActor*> foundActors = UTPSFunctionLibrary::SearchAroundActor(enemy, sightDistance, ECC_Pawn, enemy->GetWorld());
 
-	bool bCheckResult = GetWorld()->OverlapMultiByObjectType(hitInfos, enemy->GetActorLocation(), FQuat::Identity, objectParams, FCollisionShape::MakeSphere(sightDistance), queryParams);
-
-	if (bCheckResult)
+	if (foundActors.Num() > 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Player Sensored!"));
-		for (const FOverlapResult& hitInfo : hitInfos)
+		for (AActor* fActor : foundActors)
 		{
-			ATPSPlayer* player = Cast<ATPSPlayer>(hitInfo.GetActor());
+			ATPSPlayer* player = Cast<ATPSPlayer>(fActor);
 			if (player != nullptr && player->tpsPlayerState == EPlayerState::PLAYING)
 			{
-				target = player;
-				break;
+				// <2. 시야각 체크>
+				// 찾은 플레이어가 전방 좌우 30도 이내에 있는지 확인한다.
+				float degree = UTPSFunctionLibrary::CheckSight(enemy, player);
+
+				if (degree < sightAngle)
+				{
+					enemyState = EEnemyState::MOVE;
+					UE_LOG(LogTemp, Warning, TEXT("I see target!"));
+
+					target = player;
+
+					// <네비게이션 이동 방식>
+					// 만일, aiCon 변수의 값이 있다면...
+					if (aiCon != nullptr)
+					{
+						// target 방향으로 네비게이션 경로대로 이동한다.
+						EPathFollowingRequestResult::Type req = aiCon->MoveToActor(target);
+						FString requestString = UEnum::GetValueAsString<EPathFollowingRequestResult::Type>(req);
+						UE_LOG(LogTemp, Warning, TEXT("Nav Request: %s"), *requestString);
+					}
+
+					break;
+				}
 			}
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Player not Sensored..."));
 		target = nullptr;
-	}
-
-	// <2. 시야각 체크>
-	// 찾은 플레이어가 전방 좌우 30도 이내에 있는지 확인한다.
-	if (target != nullptr)
-	{
-		FVector forwardVec = enemy->GetActorForwardVector();
-		FVector directionVec = (target->GetActorLocation() - enemy->GetActorLocation()).GetSafeNormal();
-
-		float cosTheta = FVector::DotProduct(forwardVec, directionVec);
-		float theta_radian = FMath::Acos(cosTheta);
-		float theta_degree = FMath::RadiansToDegrees(theta_radian);
-
-#pragma region Debuging
-		//if (cosTheta >= 0)
-		//{
-		//	UE_LOG(LogTemp, Warning, TEXT("Target is located forward me"));
-		//}
-		//else
-		//{
-		//	UE_LOG(LogTemp, Warning, TEXT("Target is located back me"));
-		//}
-
-		//UE_LOG(LogTemp, Warning, TEXT("Degree: %.2f"), theta_degree);
-#pragma endregion
-
-		// 시야 범위 내에 있다면 이동 상태로 전환한다.
-		if (cosTheta > 0 && theta_degree < sightAngle)
-		{
-			enemyState = EEnemyState::MOVE;
-			UE_LOG(LogTemp, Warning, TEXT("I see target!"));
-
-			// <네비게이션 이동 방식>
-			// 만일, aiCon 변수의 값이 있다면...
-			if (aiCon != nullptr)
-			{
-				// target 방향으로 네비게이션 경로대로 이동한다.
-				EPathFollowingRequestResult::Type req = aiCon->MoveToActor(target);
-				FString requestString = UEnum::GetValueAsString<EPathFollowingRequestResult::Type>(req);
-				UE_LOG(LogTemp, Warning, TEXT("Nav Request: %s"), *requestString);
-
-				//aiCon->MoveToLocation(target->GetActorLocation(), 10);
-			}
-		}
 	}
 }
 

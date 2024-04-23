@@ -11,6 +11,7 @@ UENUM(BlueprintType)
 enum class EEnemyState : uint8
 {
 	IDLE,		//UMETA(DisplayName="Base State"),
+	PATROL,
 	MOVE,		//UMETA(DisplayName = "Walk State"),
 	ATTACK,		//UMETA(DisplayName = "Attack State"),
 	ATTACKDELAY,	//UMETA(DisplayName = "Attack Delay State"),

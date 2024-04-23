@@ -24,3 +24,39 @@ TArray<FVector> UTPSFunctionLibrary::CalculateThrowPoints(AActor* baseActor, con
 
 	return simulPoints;
 }
+
+// 시야각 체크
+float UTPSFunctionLibrary::CheckSight(const AActor* myActor, const AActor* otherActor)
+{
+	FVector forwardVec = myActor->GetActorForwardVector();
+	FVector directionVec = (otherActor->GetActorLocation() - myActor->GetActorLocation()).GetSafeNormal();
+
+	float cosTheta = FVector::DotProduct(forwardVec, directionVec);
+	float theta_radian = FMath::Acos(cosTheta);
+	float theta_degree = FMath::RadiansToDegrees(theta_radian);
+	
+	return theta_degree;
+}
+
+// 주변 액터 검사
+TArray<AActor*> UTPSFunctionLibrary::SearchAroundActor(const AActor* myActor, float sightDistance, ECollisionChannel searchObject, UWorld* worldContext)
+{
+	TArray<AActor*> otherActors;
+
+	TArray<FOverlapResult> hitInfos;
+	FCollisionObjectQueryParams objectParams;
+	objectParams.AddObjectTypesToQuery(searchObject);
+	FCollisionQueryParams queryParams;
+	queryParams.AddIgnoredActor(myActor);
+
+	bool bCheckResult = worldContext->OverlapMultiByObjectType(hitInfos, myActor->GetActorLocation(), FQuat::Identity, objectParams, FCollisionShape::MakeSphere(sightDistance), queryParams);
+
+	// 오버랩된 데이터마다 전부 돌면서...
+	for (const FOverlapResult& hitInfo : hitInfos)
+	{
+		// 오버랩된 액터를 otherActors 배열에 추가한다.
+		otherActors.Add(hitInfo.GetActor());
+	}
+
+	return otherActors;
+}
