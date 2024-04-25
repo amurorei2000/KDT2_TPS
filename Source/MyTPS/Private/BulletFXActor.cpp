@@ -3,6 +3,7 @@
 
 #include "BulletFXActor.h"
 #include "Particles/ParticleSystemComponent.h"
+#include "NiagaraComponent.h"
 
 ABulletFXActor::ABulletFXActor()
 {
@@ -11,9 +12,10 @@ ABulletFXActor::ABulletFXActor()
 	rootComp = CreateDefaultSubobject<USceneComponent>(TEXT("Root Component"));
 	SetRootComponent(rootComp);
 
-	particleComp = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("Particle Component"));
+	//particleComp = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("Particle Component"));
+	particleComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("Particle Component"));
 	particleComp->SetupAttachment(RootComponent);
-	particleComp->SetWorldScale3D(FVector(0.5f));
+	//particleComp->SetWorldScale3D(FVector(0.5f));
 	particleComp->SetAutoActivate(false);
 }
 

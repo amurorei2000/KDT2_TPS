@@ -26,6 +26,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
 	class UStaticMeshComponent* meshComp;
 
+	UPROPERTY(VisibleAnywhere, Category="MySettings|Components")
+	class UNiagaraComponent* effectComp;
+
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	float damageRadius = 500;
 
@@ -37,6 +40,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TEnumAsByte<ECollisionChannel> affectType;
+
+	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
+	class UNiagaraSystem* bombFx;
 
 	void Throw(const FVector& throwDir, float throwPower);
 

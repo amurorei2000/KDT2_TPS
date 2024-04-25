@@ -24,7 +24,8 @@ public:
 	class USceneComponent* rootComp;
 
 	UPROPERTY(VisibleAnywhere, Category="MySettings")
-	class UParticleSystemComponent* particleComp;
+	//class UParticleSystemComponent* particleComp;
+	class UNiagaraComponent* particleComp;
 
 	void PlayFX();
 };

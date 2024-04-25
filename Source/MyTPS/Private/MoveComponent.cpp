@@ -26,7 +26,7 @@ void UMoveComponent::BeginPlay()
 	pc = player->GetController<APlayerController>();
 	if (pc != nullptr)
 	{
-		pc->SetShowMouseCursor(true);
+		pc->SetShowMouseCursor(player->inputType == EInputType::RTS_INPUT);
 	}
 
 	for (TActorIterator<AActor> iter(GetWorld()); iter; ++iter)
@@ -246,7 +246,10 @@ void UMoveComponent::ClickMoveAction(const FInputActionValue& value)
 			if (GetWorld()->LineTraceSingleByChannel(hitInfo, startLoc, endLoc, ECC_Visibility, params))
 			{
 				// clickActor 오브젝트를 라인 트레이스에 충돌한 지점으로 옮긴다.
-				clickActor->SetActorLocation(hitInfo.ImpactPoint);
+				if (clickActor != nullptr)
+				{
+					clickActor->SetActorLocation(hitInfo.ImpactPoint);
+				}
 				targetMoveLocation = hitInfo.ImpactPoint;
 
 				

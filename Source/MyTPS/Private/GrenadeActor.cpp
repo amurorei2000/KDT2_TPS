@@ -5,6 +5,10 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Enemy.h"
+#include "NiagaraSystem.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+#include <../../../../../../../Plugins/FX/Niagara/Source/Niagara/Classes/NiagaraDataInterfaceArrayFunctionLibrary.h>
 
 
 AGrenadeActor::AGrenadeActor()
@@ -23,6 +27,10 @@ AGrenadeActor::AGrenadeActor()
 	meshComp->SetRelativeLocation(FVector(0, 0, -8));
 	meshComp->SetRelativeScale3D(FVector(0.2f));
 
+	effectComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("Effect Component"));
+	effectComp->SetupAttachment(meshComp);
+	effectComp->SetAutoActivate(false);
+	effectComp->SetAutoDestroy(false);
 }
 
 void AGrenadeActor::BeginPlay()
@@ -82,6 +90,25 @@ void AGrenadeActor::BombAction(UPrimitiveComponent* HitComponent, AActor* OtherA
 		}
 	}
 
-	Destroy();
+	if (bombFx->IsValid())
+	{
+		// static 함수로 실행하는 방법
+		//UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), bombFx, GetActorLocation());
+
+		// 컴포넌트로 실행하는 방법
+		// user parameter - 단일 데이터를 추가할 때
+		effectComp->SetFloatParameter(FName("ExplosionSize"), 3.0f);
+		effectComp->SetVariableLinearColor(FName("ExplosionColor"), FLinearColor::Blue);
+		
+		// user parameter - 배열 데이터를 추가할 때
+		TArray<FVector> pathPoints;
+		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(effectComp, FName("Path"), pathPoints);
+
+		effectComp->Activate();
+		//effectComp->ActivateSystem();
+		//effectComp->SetPaused(true);
+
+	}
+	//Destroy();
 }
 
