@@ -4,14 +4,42 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Engine/DataTable.h"
 #include "TPSPlayer.generated.h"
 
 UENUM(BlueprintType)
-enum class EPlayerState
+enum class EPlayerState : uint8
 {
 	READY,
 	PLAYING,
 	DEATH,
+};
+
+UENUM(BlueprintType)
+enum class EInputType : uint8
+{
+	TPS_INPUT,
+	RTS_INPUT,
+	MOBILE_INPUT
+};
+
+USTRUCT(BlueprintType)
+struct FPlayerStatus : public FTableRowBase
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category="MySettings")
+	int32 maxHP = 50;
+
+	UPROPERTY(EditAnywhere, Category="MySettings")
+	float baseSpeed = 600.0f;
+
+	UPROPERTY(EditAnywhere, Category="MySettings")
+	float dashSpeed = 1200.0f;
+
+	UPROPERTY(EditAnywhere, Category="MySettings")
+	int32 jumpCount = 2;
 };
 
 
@@ -53,6 +81,9 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings|Inputs")
 	class UInputMappingContext* imc_tpsKeyMap;
 
+	UPROPERTY(EditAnywhere, Category="MySettings")
+	EInputType inputType = EInputType::TPS_INPUT;
+
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	TArray<class UStaticMesh*> gunTypes;
 
@@ -65,14 +96,16 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
 	EPlayerState tpsPlayerState;
 
+	UPROPERTY(EditAnywhere, Category = "MySettings|Variables")
+	struct FPlayerStatus playerStatus;
+
 	UPROPERTY()
 	class AWeaponActor* attachedWeapon;
 
 	UPROPERTY(EditAnywhere, Category="MySettings|Animations")
 	class UAnimMontage* hitMotage;
 
-	UPROPERTY(EditAnywhere, Category="MySettings|Variables")
-	int32 maxHP = 50;
+	
 	
 
 	void SetGunAnimType(bool sniper);

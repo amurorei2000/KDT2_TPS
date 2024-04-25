@@ -8,6 +8,8 @@
 #include "MoveComponent.generated.h"
 
 
+
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class MYTPS_API UMoveComponent : public UActorComponent
 {
@@ -34,17 +36,28 @@ public:
 	UPROPERTY(EditAnywhere, Category="MySettings")
 	class UInputAction* ia_jump;
 
+	UPROPERTY(EditAnywhere, Category="MySettings")
+	class UInputAction* ia_leftClick;
+
+	UPROPERTY(EditAnywhere, Category="MySettings")
+	class UInputAction* ia_rightClick;
+
+
 	void SetupPlayerInputComponent(class UEnhancedInputComponent* enhancedInputComponent);
 
 
 private:
 	FVector moveDirection;
 	FRotator deltaRotation;
+	APlayerController* pc;
+	AActor* clickActor;
+	FVector targetMoveLocation;
+	float prevFingerDist;
 
 	UPROPERTY()
 	class ATPSPlayer* player;
 
-
+	// TPS Type
 	UFUNCTION()
 	void PlayerMove(const FInputActionValue& value);
 
@@ -57,4 +70,12 @@ private:
 	UFUNCTION()
 	void PlayerJumpEnd(const FInputActionValue& value);
 
+	// RTS Type
+	UFUNCTION()
+	void SelectAction(const FInputActionValue& value);
+
+	UFUNCTION()
+	void ClickMoveAction(const FInputActionValue& value);
 };
+
+

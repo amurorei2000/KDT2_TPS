@@ -18,6 +18,7 @@
 #include "MoveComponent.h"
 #include "WeaponComponent.h"
 #include "FSMComponent.h"
+#include "TPSGameInstance.h"
 
 
 ATPSPlayer::ATPSPlayer()
@@ -95,8 +96,7 @@ ATPSPlayer::ATPSPlayer()
 	GetCharacterMovement()->JumpZVelocity = 600.0f;
 	GetCharacterMovement()->AirControl = 0.05f;
 
-	// 연속 점프 가능 수
-	JumpMaxCount = 2;
+	
 
 	// 0번 플레이어(로컬 플레이어)로 등록한다.
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
@@ -125,11 +125,30 @@ void ATPSPlayer::BeginPlay()
 	gm = Cast<ATPSMainGameModeBase>(GetWorld()->GetAuthGameMode());
 	playerAnim = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance());
 
-	currentHP = maxHP;
+	currentHP = playerStatus.maxHP;
 	playerHealthWidget = Cast<UEnemyHealthWidget>(floatingWidgetComp->GetWidget());
 
 	tpsPlayerState = EPlayerState::PLAYING;
+
+	// 연속 점프 가능 수 설정
+	JumpMaxCount = playerStatus.jumpCount;
+
+	// 기본 이동 속도 설정
+	GetCharacterMovement()->MaxWalkSpeed = playerStatus.baseSpeed;
+
+	// 게임 인스턴스 가져오기
+	UTPSGameInstance* gi = GetGameInstance<UTPSGameInstance>();
 	
+	// 테이블의 모든 행 이름(Row Name)을 읽어오기
+	TArray<FName> rowNameList = gi->dt_playerStatus->GetRowNames();
+	for (int32 i = 0; i < rowNameList.Num(); i++)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%d: %s"), i, *rowNameList[i].ToString());
+	}
+
+	// 테이블 데이터를 행(Row) 단위로 읽기
+	FPlayerStatus readData = gi->GetPlayerTableData("HeavyMan");
+	UE_LOG(LogTemp, Warning, TEXT("Base Speed: %f, DashSpeed: %f, Max Jump Count: %d, Max HP: %d"), readData.baseSpeed, readData.dashSpeed, readData.jumpCount, readData.maxHP);
 }
 
 void ATPSPlayer::Tick(float DeltaTime)
@@ -163,11 +182,11 @@ void ATPSPlayer::SetGunAnimType(bool sniper)
 
 void ATPSPlayer::OnDamaged(int32 dmg, AEnemy* attacker)
 {
-	currentHP = FMath::Clamp(currentHP - dmg, 0, maxHP);
+	currentHP = FMath::Clamp(currentHP - dmg, 0, playerStatus.maxHP);
 
 	if (playerHealthWidget != nullptr)
 	{
-		playerHealthWidget->SetHealthBar((float)currentHP / (float)maxHP, FLinearColor(1.0f, 0.138f, 0.059f, 1.0f));
+		playerHealthWidget->SetHealthBar((float)currentHP / (float)playerStatus.maxHP, FLinearColor(1.0f, 0.138f, 0.059f, 1.0f));
 	}
 
 	if (currentHP <= 0)

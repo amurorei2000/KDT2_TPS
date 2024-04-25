@@ -137,79 +137,83 @@ void UWeaponComponent::SetupPlayerInputComponent(UEnhancedInputComponent* enhanc
 
 void UWeaponComponent::PlayerFire(const FInputActionValue& value)
 {
-	// 총을 들고 있지 않거나 또는 총을 발사하는 애니메이션 중일 때에는 이 함수를 종료한다.
-	if (player->attachedWeapon == nullptr || GetWorld()->GetTimerManager().IsTimerActive(endFireTimer))
+	if (player->inputType == EInputType::TPS_INPUT)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Weapon: %s"), player->attachedWeapon == nullptr ? *FString("Null") : *FString("Has"));
-		return;
-	}
 
-	// 라인 트레이스 방식
-	FHitResult hitInfo;
-	FVector startLoc = player->cameraComp->GetComponentLocation();
-	FVector endLoc = startLoc + player->cameraComp->GetForwardVector() * player->attachedWeapon->fireDistance;
-	// 충돌 체크에 포함할 오브젝트 타입
-	FCollisionObjectQueryParams objQueryParams;
-	objQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-	objQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-	// 충돌 체크에서 제외할 액터 또는 컴포넌트
-	FCollisionQueryParams queryParams;
-	queryParams.AddIgnoredActor(player);
-
-	// 싱글 방식
-	//bool bResult = GetWorld()->LineTraceSingleByObjectType(hitInfo, startLoc, endLoc, objQueryParams, queryParams);
-	bool bResult = GetWorld()->LineTraceSingleByChannel(hitInfo, startLoc, endLoc, ECC_Visibility, queryParams);
-
-	// 멀티 방식
-	//TArray<FHitResult> hitInfos;
-
-	//bool bResult = GetWorld()->LineTraceMultiByChannel(hitInfos, startLoc, endLoc, ECC_Visibility, queryParams);
-	//bool bResult = GetWorld()->LineTraceMultiByObjectType(hitInfos, startLoc, endLoc, objQueryParams, queryParams);
-	
-	if (bResult)
-	{
-		//UE_LOG(LogTemp, Warning, TEXT("Hit Actor Name: %s"), *hitInfo.GetActor()->GetActorNameOrLabel());
-		//DrawDebugLine(GetWorld(), startLoc, hitInfo.ImpactPoint, FColor(0, 255, 0), false, 2.0f, 0, 1);
-		//DrawDebugLine(GetWorld(), hitInfo.ImpactPoint, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1);
-
-		// 감지된 지점에 폭발 효과 이펙트를 출력한다.
-		if (bulletFX != nullptr)
+		// 총을 들고 있지 않거나 또는 총을 발사하는 애니메이션 중일 때에는 이 함수를 종료한다.
+		if (player->attachedWeapon == nullptr || GetWorld()->GetTimerManager().IsTimerActive(endFireTimer))
 		{
-			bulletFX->SetActorLocation(hitInfo.ImpactPoint);
-			bulletFX->PlayFX();
+			UE_LOG(LogTemp, Warning, TEXT("Weapon: %s"), player->attachedWeapon == nullptr ? *FString("Null") : *FString("Has"));
+			return;
 		}
 
-		// 만일, 감지된 대상이 Enemy라면...
-		AEnemy* enemy = Cast<AEnemy>(hitInfo.GetActor());
+		// 라인 트레이스 방식
+		FHitResult hitInfo;
+		FVector startLoc = player->cameraComp->GetComponentLocation();
+		FVector endLoc = startLoc + player->cameraComp->GetForwardVector() * player->attachedWeapon->weaponData.fireDistance;
+		// 충돌 체크에 포함할 오브젝트 타입
+		FCollisionObjectQueryParams objQueryParams;
+		objQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+		objQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+		// 충돌 체크에서 제외할 액터 또는 컴포넌트
+		FCollisionQueryParams queryParams;
+		queryParams.AddIgnoredActor(player);
 
-		if (enemy != nullptr)
+		// 싱글 방식
+		//bool bResult = GetWorld()->LineTraceSingleByObjectType(hitInfo, startLoc, endLoc, objQueryParams, queryParams);
+		bool bResult = GetWorld()->LineTraceSingleByChannel(hitInfo, startLoc, endLoc, ECC_Visibility, queryParams);
+
+		// 멀티 방식
+		//TArray<FHitResult> hitInfos;
+
+		//bool bResult = GetWorld()->LineTraceMultiByChannel(hitInfos, startLoc, endLoc, ECC_Visibility, queryParams);
+		//bool bResult = GetWorld()->LineTraceMultiByObjectType(hitInfos, startLoc, endLoc, objQueryParams, queryParams);
+
+		if (bResult)
 		{
-			// Enemy의 OnDamage() 함수를 실행시킨다.
-			enemy->OnDamaged(player->attachedWeapon->damage, player);
-			
+			//UE_LOG(LogTemp, Warning, TEXT("Hit Actor Name: %s"), *hitInfo.GetActor()->GetActorNameOrLabel());
+			//DrawDebugLine(GetWorld(), startLoc, hitInfo.ImpactPoint, FColor(0, 255, 0), false, 2.0f, 0, 1);
+			//DrawDebugLine(GetWorld(), hitInfo.ImpactPoint, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1);
+
+			// 감지된 지점에 폭발 효과 이펙트를 출력한다.
+			if (bulletFX != nullptr)
+			{
+				bulletFX->SetActorLocation(hitInfo.ImpactPoint);
+				bulletFX->PlayFX();
+			}
+
+			// 만일, 감지된 대상이 Enemy라면...
+			AEnemy* enemy = Cast<AEnemy>(hitInfo.GetActor());
+
+			if (enemy != nullptr)
+			{
+				// Enemy의 OnDamage() 함수를 실행시킨다.
+				enemy->OnDamaged(player->attachedWeapon->weaponData.damage, player);
+
+			}
 		}
-	}
-	//else
-	//{
-		//DrawDebugLine(GetWorld(), startLoc, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1.0f);
-	//}
+		//else
+		//{
+			//DrawDebugLine(GetWorld(), startLoc, endLoc, FColor(255, 0, 0), false, 2.0f, 0, 1.0f);
+		//}
 
-	if (player->GetPlayerAnim() != nullptr)
-	{
-		player->GetPlayerAnim()->bFire = true;
-
-		GetWorld()->GetTimerManager().SetTimer(endFireTimer, this, &UWeaponComponent::EndFire, 0.5f, false);
-	}
-
-	if (fire_montages.Num() > 1)
-	{
-		if (player->attachedWeapon->bSniperGun)
+		if (player->GetPlayerAnim() != nullptr)
 		{
-			player->PlayAnimMontage(fire_montages[1]);
+			player->GetPlayerAnim()->bFire = true;
+
+			GetWorld()->GetTimerManager().SetTimer(endFireTimer, this, &UWeaponComponent::EndFire, 0.5f, false);
 		}
-		else
+
+		if (fire_montages.Num() > 1)
 		{
-			player->PlayAnimMontage(fire_montages[0]);
+			if (player->attachedWeapon->weaponData.bSniperGun)
+			{
+				player->PlayAnimMontage(fire_montages[1]);
+			}
+			else
+			{
+				player->PlayAnimMontage(fire_montages[0]);
+			}
 		}
 	}
 }
@@ -249,6 +253,11 @@ void UWeaponComponent::SetWeapon2(const FInputActionValue& value)
 
 void UWeaponComponent::SniperGunZoomInOut(const FInputActionValue& value)
 {
+	if (player->inputType != EInputType::TPS_INPUT)
+	{
+		return;
+	}
+
 	bool inputValue = value.Get<bool>();
 
 	// 노멀 건일 때

@@ -67,15 +67,15 @@ void AWeaponActor::OnOverlapPlayer(UPrimitiveComponent* OverlappedComponent, AAc
 			//FAttachmentTransformRules attachRules = FAttachmentTransformRules::KeepRelativeTransform;
 
 			AttachToComponent(player->GetMesh(), attachRules, FName("GunSocket"));
-			SetActorRelativeLocation(snapOffset);
+			SetActorRelativeLocation(weaponData.snapOffset);
 
 			// 플레이어의 attachedWeapon 변수에 자기 자신을 등록한다.
 			player->attachedWeapon = this;
 
 			// 플레이어 애니메이션 인스턴스의 useSniper 변수 값을 변경한다.
-			player->SetGunAnimType(bSniperGun);
+			player->SetGunAnimType(weaponData.bSniperGun);
 
-			player->weaponComp->SetCurrentWeaponNumber(bSniperGun);
+			player->weaponComp->SetCurrentWeaponNumber(weaponData.bSniperGun);
 		}
 	}
 }
